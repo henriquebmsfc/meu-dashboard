@@ -126,6 +126,42 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
     cl.forEach(c=>{const b=spendBuckets.find(b=>c.total>=b.min&&c.total<b.max);if(b){b.count++;b.revenue+=c.total;}});
     const sorted = [...cl].sort((a,b)=>b.total-a.total);
     const top20 = sorted.slice(0,Math.ceil(cl.length*0.2));
+
+    // Geographic: per-state revenue + unique clients (from valid orders)
+    const cStateMap={};
+    norm.forEach(r=>{const ck2=findKey(r,"codigo","cliente"),nk2=findKey(r,"nome"),ek2=findKey(r,"estado");const id2=ck2?r[ck2]:(nk2?r[nk2]:"?");if(!cStateMap[id2]&&ek2&&r[ek2]?.trim())cStateMap[id2]=r[ek2].trim();});
+    const stAgg={};
+    valid.forEach(r=>{const ck2=findKey(r,"codigo","cliente"),nk2=findKey(r,"nome"),vk2=findKey(r,"valor"),ek2=findKey(r,"estado");const id2=ck2?r[ck2]:(nk2?r[nk2]:"?");const st=cStateMap[id2]||(ek2&&r[ek2]?.trim())||"N/A";const v=parseVal(vk2?r[vk2]:0);if(!stAgg[st])stAgg[st]={cs:new Set(),orders:0,revenue:0};stAgg[st].cs.add(id2);stAgg[st].orders++;stAgg[st].revenue+=v;});
+    const geoData=Object.entries(stAgg).map(([state,s])=>({state,clients:s.cs.size,orders:s.orders,revenue:s.revenue})).sort((a,b)=>b.revenue-a.revenue).slice(0,10);
+
+    // Demographics: gender, age, person type (unique clients from norm)
+    const cGender={},cAge={},cType={};
+    norm.forEach(r=>{
+      const ck2=findKey(r,"codigo","cliente"),nk2=findKey(r,"nome");
+      const sk2=findKey(r,"sexo"),bk2=findKey(r,"nascimento"),tk2=findKey(r,"tipo");
+      const id2=ck2?r[ck2]:(nk2?r[nk2]:"?");
+      if(!cGender[id2]&&sk2&&r[sk2]?.trim())cGender[id2]=r[sk2].trim().toUpperCase().charAt(0);
+      if(!cType[id2]&&tk2&&r[tk2]?.trim())cType[id2]=r[tk2].trim();
+      if(!cAge[id2]&&bk2&&r[bk2]?.trim()){const bd=parseDate(r[bk2]);if(bd&&!isNaN(bd)){const a=Math.floor((now-bd)/(365.25*86400000));if(a>0&&a<120)cAge[id2]=a;}}
+    });
+    const gC={M:0,F:0,other:0};
+    Object.values(cGender).forEach(g=>{if(g==="M")gC.M++;else if(g==="F")gC.F++;else gC.other++;});
+    const ageBuckets=[{label:"Até 25",count:0},{label:"26–35",count:0},{label:"36–45",count:0},{label:"46–60",count:0},{label:"60+",count:0}];
+    Object.values(cAge).forEach(a=>{if(a<=25)ageBuckets[0].count++;else if(a<=35)ageBuckets[1].count++;else if(a<=45)ageBuckets[2].count++;else if(a<=60)ageBuckets[3].count++;else ageBuckets[4].count++;});
+    const pTypes={};Object.values(cType).forEach(t=>{pTypes[t]=(pTypes[t]||0)+1;});
+
+    // Time patterns (from valid orders)
+    const hCounts=Array(24).fill(0);
+    valid.forEach(r=>{const hk=findKey(r,"hora");if(hk&&r[hk]){const h2=parseInt(String(r[hk]).split(":")[0]);if(!isNaN(h2)&&h2>=0&&h2<24)hCounts[h2]++;}});
+    const dCounts=Array(7).fill(0);
+    valid.forEach(r=>{const dk2=findKey(r,"data");if(dk2&&r[dk2]){const d2=parseDate(r[dk2]);if(d2&&!isNaN(d2))dCounts[d2.getDay()]++;}});
+
+    // CRM readiness: email + phone fill rates (unique clients from norm)
+    const crmMap2={};
+    norm.forEach(r=>{const ck2=findKey(r,"codigo","cliente"),nk2=findKey(r,"nome"),ek2=findKey(r,"email"),tk2=findKey(r,"telefone");const id2=ck2?r[ck2]:(nk2?r[nk2]:"?");if(!crmMap2[id2])crmMap2[id2]={email:false,phone:false};if(ek2&&r[ek2]?.trim())crmMap2[id2].email=true;if(tk2&&r[tk2]?.trim())crmMap2[id2].phone=true;});
+    const crmArr=Object.values(crmMap2);
+    const crmTot=crmArr.length,crmEm=crmArr.filter(c=>c.email).length,crmPh=crmArr.filter(c=>c.phone).length,crmBo=crmArr.filter(c=>c.email&&c.phone).length;
+
     return {
       totalRev, uniqueClients:cl.length, totalOrders:valid.length,
       avgOrder:valid.length?totalRev/valid.length:0,
@@ -138,9 +174,13 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
       f10:cl.filter(c=>c.orders>=10).length,
       f20:cl.filter(c=>c.orders>=20).length,
       spendBuckets, fatJet:top20.reduce((s,c)=>s+c.total,0),
-      clientsSorted: sorted,
+      clientsSorted:sorted,
+      geoData, gC, genderTotal:Object.keys(cGender).length,
+      ageBuckets, withAge:Object.keys(cAge).length,
+      pTypes, hCounts, dCounts,
+      crmTot, crmEm, crmPh, crmBo,
     };
-  }, [valid]);
+  }, [valid, norm]);
 
   // Insights automáticos
   const insights = useMemo(() => {
@@ -229,6 +269,25 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
       return db - da;
     });
   }, [selectedClient, norm]);
+
+  const clientDetail = useMemo(() => {
+    if (!clientOrders.length) return null;
+    let email=null,phone=null,city=null,state=null,gender=null,personType=null;
+    for (const r of clientOrders) {
+      const ek=findKey(r,"email"),tk=findKey(r,"telefone"),ck2=findKey(r,"cidade"),ek2=findKey(r,"estado"),sk=findKey(r,"sexo"),tpk=findKey(r,"tipo");
+      if(!email&&ek&&r[ek]?.trim())email=r[ek].trim();
+      if(!phone&&tk&&r[tk]?.trim())phone=r[tk].trim();
+      if(!city&&ck2&&r[ck2]?.trim())city=r[ck2].trim();
+      if(!state&&ek2&&r[ek2]?.trim())state=r[ek2].trim();
+      if(!gender&&sk&&r[sk]?.trim())gender=r[sk].trim();
+      if(!personType&&tpk&&r[tpk]?.trim())personType=r[tpk].trim();
+    }
+    let avgDays=null;
+    const dates=clientOrders.map(r=>{const dk=findKey(r,"data");return dk?parseDate(r[dk]):null;}).filter(d=>d&&!isNaN(d)).sort((a,b)=>a-b);
+    if(dates.length>=2){const gaps=[];for(let i=1;i<dates.length;i++)gaps.push((dates[i]-dates[i-1])/86400000);avgDays=Math.round(gaps.reduce((s,g)=>s+g,0)/gaps.length);}
+    const first=dates[0]||null, last=dates[dates.length-1]||null;
+    return {email,phone,city,state,gender,personType,avgDays,first,last};
+  }, [clientOrders]);
 
   const handleExportClients = () => {
     if (!overview) return;
@@ -381,6 +440,161 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
               })}
             </div>
           </div>
+
+          {/* Horários */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:18}}>
+            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Horário dos Pedidos</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:16}}>Distribuição por hora do dia (0–23h)</div>
+              {(() => {
+                const maxH=Math.max(...intel.hCounts,1);
+                const hasData=intel.hCounts.some(c=>c>0);
+                if(!hasData) return <div style={{fontSize:12,color:"#bbb",fontFamily:"'JetBrains Mono',monospace"}}>Sem dados de hora</div>;
+                return <>
+                  <div style={{display:"flex",alignItems:"flex-end",gap:2,height:80}}>
+                    {intel.hCounts.map((c,h)=>{
+                      const pct=(c/maxH)*100;
+                      const isDay=h>=8&&h<20;
+                      return <div key={h} title={`${String(h).padStart(2,"0")}h: ${fmtN(c)} pedidos`} style={{flex:1,height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+                        <div style={{width:"100%",background:isDay?"#1a1a2e":"#a8dadc",borderRadius:"2px 2px 0 0",height:pct+"%",minHeight:c?2:0}}/>
+                      </div>;
+                    })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+                    {[0,6,12,18,23].map(h=><span key={h} style={{fontSize:9,fontFamily:"'JetBrains Mono',monospace",color:"#ccc"}}>{String(h).padStart(2,"0")}h</span>)}
+                  </div>
+                </>;
+              })()}
+            </div>
+            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Dia da Semana</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:16}}>Pedidos por dia</div>
+              {(() => {
+                const labels=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+                const maxD=Math.max(...intel.dCounts,1);
+                return intel.dCounts.map((c,i)=>{
+                  const pct=(c/maxD*100).toFixed(0);
+                  const isWknd=i===0||i===6;
+                  return <div key={i} style={{marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <span style={{fontSize:12,color:isWknd?"#e76f51":"#555"}}>{labels[i]}</span>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:600,color:"#1a1a2e"}}>{fmtN(c)}</span>
+                        <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#bbb",width:30,textAlign:"right"}}>{pct}%</span>
+                      </div>
+                    </div>
+                    <div style={{height:7,background:"#f0ede8",borderRadius:4}}><div style={{width:pct+"%",height:"100%",background:isWknd?"#e76f51":"#1a1a2e",borderRadius:4}}/></div>
+                  </div>;
+                });
+              })()}
+            </div>
+          </div>
+
+          {/* Geográfico + CRM */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:18}}>
+            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Estados — Top {intel.geoData.length}</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:16}}>Por faturamento acumulado</div>
+              {intel.geoData.length===0
+                ? <div style={{fontSize:12,color:"#bbb",fontFamily:"'JetBrains Mono',monospace"}}>Sem dados de estado</div>
+                : intel.geoData.map((row,i)=>{
+                    const maxR=intel.geoData[0].revenue;
+                    const pct=maxR?(row.revenue/maxR*100).toFixed(0):0;
+                    return <div key={row.state} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                        <span style={{fontSize:13,fontWeight:i===0?600:400,color:"#1a1a2e"}}>{row.state}</span>
+                        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#aaa"}}>{fmtN(row.clients)} cli.</span>
+                          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,fontWeight:600,color:"#1a1a2e"}}>{fmt(row.revenue)}</span>
+                        </div>
+                      </div>
+                      <div style={{height:7,background:"#f0ede8",borderRadius:4}}><div style={{width:pct+"%",height:"100%",background:"#457b9d",borderRadius:4}}/></div>
+                    </div>;
+                  })
+              }
+            </div>
+            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Prontidão CRM</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Dados de contato — {fmtN(intel.crmTot)} clientes únicos</div>
+              {[
+                {label:"Com E-mail",    v:intel.crmEm, c:"#2d6a4f"},
+                {label:"Com Telefone",  v:intel.crmPh, c:"#457b9d"},
+                {label:"E-mail + Tel.", v:intel.crmBo, c:"#1a1a2e"},
+              ].map(row=>{
+                const pct=intel.crmTot?(row.v/intel.crmTot*100).toFixed(1):0;
+                return <div key={row.label} style={{marginBottom:18}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <span style={{fontSize:13,color:"#555"}}>{row.label}</span>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(row.v)}</span>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#bbb",width:42,textAlign:"right"}}>{pct}%</span>
+                    </div>
+                  </div>
+                  <div style={{height:8,background:"#f0ede8",borderRadius:4}}><div style={{width:pct+"%",height:"100%",background:row.c,borderRadius:4}}/></div>
+                </div>;
+              })}
+              {Object.keys(intel.pTypes).length>0 && (
+                <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #f0ede8"}}>
+                  <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Tipo de Pessoa</div>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {Object.entries(intel.pTypes).map(([type,count])=>(
+                      <div key={type} style={{flex:1,minWidth:70,background:"#faf9f7",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                        <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#aaa",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>{type}</div>
+                        <div style={{fontSize:20,fontFamily:"'Outfit',sans-serif",fontWeight:700,color:"#1a1a2e"}}>{fmtN(count)}</div>
+                        <div style={{fontSize:10,color:"#bbb",fontFamily:"'JetBrains Mono',monospace"}}>{intel.crmTot?(count/intel.crmTot*100).toFixed(0):0}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Demográfico */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:18}}>
+            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Gênero dos Clientes</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>{fmtN(intel.genderTotal)} com dado informado de {fmtN(intel.uniqueClients)}</div>
+              {[
+                {label:"Masculino",    v:intel.gC.M,                               c:"#457b9d"},
+                {label:"Feminino",     v:intel.gC.F,                               c:"#e76f51"},
+                {label:"Não informado",v:intel.uniqueClients-intel.genderTotal,     c:"#e8e4de"},
+              ].map(row=>{
+                const pct=intel.uniqueClients?(row.v/intel.uniqueClients*100).toFixed(1):0;
+                return <div key={row.label} style={{marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <span style={{fontSize:13,color:"#555"}}>{row.label}</span>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(row.v)}</span>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#bbb",width:38,textAlign:"right"}}>{pct}%</span>
+                    </div>
+                  </div>
+                  <div style={{height:8,background:"#f0ede8",borderRadius:4}}><div style={{width:pct+"%",height:"100%",background:row.c,borderRadius:4}}/></div>
+                </div>;
+              })}
+            </div>
+            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Faixa Etária</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>{fmtN(intel.withAge)} clientes com data de nascimento</div>
+              {intel.withAge===0
+                ? <div style={{fontSize:12,color:"#bbb",fontFamily:"'JetBrains Mono',monospace"}}>Sem dados de nascimento</div>
+                : intel.ageBuckets.map((b,i)=>{
+                    const pct=intel.withAge?(b.count/intel.withAge*100).toFixed(1):0;
+                    const colors=["#a8dadc","#457b9d","#1d3557","#2d6a4f","#1a1a2e"];
+                    return <div key={b.label} style={{marginBottom:14}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:13,color:"#555"}}>{b.label}</span>
+                        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(b.count)}</span>
+                          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#bbb",width:38,textAlign:"right"}}>{pct}%</span>
+                        </div>
+                      </div>
+                      <div style={{height:8,background:"#f0ede8",borderRadius:4}}><div style={{width:pct+"%",height:"100%",background:colors[i],borderRadius:4}}/></div>
+                    </div>;
+                  })
+              }
+            </div>
+          </div>
         </>}
 
         {/* Clientes */}
@@ -478,7 +692,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
             <button onClick={()=>setSelectedClient(null)} style={{ background:"#f5f2ee", border:"none", borderRadius:8, width:32, height:32, cursor:"pointer", fontSize:20, color:"#666", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
           </div>
           {/* KPIs */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, padding:"20px 28px", flexShrink:0 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, padding:"20px 28px 12px", flexShrink:0 }}>
             {[
               { label:"Total Gasto",   value:fmt(selectedClient.total) },
               { label:"Pedidos",       value:fmtN(selectedClient.orders) },
@@ -490,7 +704,34 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                 <div style={{ fontSize:18, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e" }}>{k.value}</div>
               </div>
             ))}
+            {clientDetail?.avgDays != null && (
+              <div style={{ gridColumn:"1/-1", background:"#faf9f7", borderRadius:10, padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Intervalo Médio</div>
+                  <div style={{ fontSize:18, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e" }}>{clientDetail.avgDays} dias entre compras</div>
+                </div>
+                {clientDetail.first && clientDetail.last && clientDetail.first.getTime() !== clientDetail.last.getTime() && (
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb" }}>1ª compra</div>
+                    <div style={{ fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>{clientDetail.first.toLocaleDateString("pt-BR")}</div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          {/* Contato */}
+          {clientDetail && (clientDetail.email||clientDetail.phone||clientDetail.city||clientDetail.gender||clientDetail.personType) && (
+            <div style={{ padding:"0 28px 16px", flexShrink:0 }}>
+              <div style={{ background:"#faf9f7", borderRadius:10, padding:"12px 14px", display:"flex", flexWrap:"wrap", gap:12 }}>
+                {clientDetail.personType && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>👤 {clientDetail.personType}</span>}
+                {clientDetail.gender && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>{clientDetail.gender==="M"||clientDetail.gender==="m"?"♂ Masculino":"♀ Feminino"}</span>}
+                {clientDetail.city && clientDetail.state && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>📍 {clientDetail.city}, {clientDetail.state}</span>}
+                {clientDetail.city && !clientDetail.state && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>📍 {clientDetail.city}</span>}
+                {clientDetail.email && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>✉ {clientDetail.email}</span>}
+                {clientDetail.phone && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>📞 {clientDetail.phone}</span>}
+              </div>
+            </div>
+          )}
           {/* Histórico */}
           <div style={{ padding:"0 28px 12px", flexShrink:0 }}>
             <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.12em" }}>
