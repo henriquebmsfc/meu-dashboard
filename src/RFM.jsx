@@ -25,15 +25,13 @@ function quintileScore(sortedAsc, val) {
   return Math.min(5, Math.ceil(pct * 5) || 1);
 }
 const SEG = {
-  "Campeões":          { color:"#064e3b", bg:"#d1fae5", icon:"👑", desc:"Alta recência, frequência e valor" },
-  "Leais":             { color:"#1e3a5f", bg:"#dbeafe", icon:"⭐", desc:"Compram com frequência e gastam bem" },
-  "Potencial Leal":    { color:"#3b5e2b", bg:"#dcfce7", icon:"🌱", desc:"Recentes, ainda crescendo" },
-  "Novos Clientes":    { color:"#065f46", bg:"#a7f3d0", icon:"✨", desc:"Compraram recentemente, poucas vezes" },
-  "Grandes Gastadores":{ color:"#78350f", bg:"#fef3c7", icon:"💎", desc:"Alto valor, frequência moderada" },
-  "Regulares":         { color:"#374151", bg:"#f3f4f6", icon:"🔵", desc:"Perfil médio em todas as dimensões" },
-  "Precisam Atenção":  { color:"#92400e", bg:"#fde68a", icon:"⚠️", desc:"Ficaram um tempo sem comprar" },
-  "Em Risco":          { color:"#991b1b", bg:"#fee2e2", icon:"🔴", desc:"Eram bons clientes, sumiram" },
-  "Perdidos":          { color:"#4b0082", bg:"#ede9fe", icon:"💀", desc:"Muito tempo sem atividade" },
+  "VIP":         { color:"#7c2d12", bg:"#fef3c7", icon:"👑", desc:"Alta frequência e valor, ativos nos últimos 6 meses" },
+  "Leais":       { color:"#1e3a5f", bg:"#dbeafe", icon:"⭐", desc:"Compram bem e com frequência, base sólida" },
+  "Novos":       { color:"#065f46", bg:"#a7f3d0", icon:"✨", desc:"Compraram recentemente, ainda nas primeiras compras" },
+  "Ocasionais":  { color:"#374151", bg:"#f3f4f6", icon:"🔵", desc:"Ativos, mas com baixa frequência ou valor" },
+  "Em Risco":    { color:"#991b1b", bg:"#fee2e2", icon:"⚠️", desc:"Sem comprar entre 6 meses e 1 ano" },
+  "Adormecidos": { color:"#92400e", bg:"#fde68a", icon:"😴", desc:"Sem comprar entre 1 e 2 anos" },
+  "Perdidos":    { color:"#4b0082", bg:"#ede9fe", icon:"💀", desc:"Mais de 2 anos sem atividade" },
 };
 function exportCSV(rows, filename) {
   if (!rows.length) return;
@@ -62,27 +60,15 @@ function toExportRow(c) {
   };
 }
 function classify(r, f, m, days) {
-  // Limites absolutos de recência — override dos scores relativos
-  // Nenhum cliente inativo por muito tempo pode ser classificado como ativo
-  if (days > 730) return "Perdidos";            // +2 anos: perdidos
-  if (days > 365) {                              // 1–2 anos: em risco ou perdidos
-    if (f >= 3 && m >= 3) return "Em Risco";
-    return "Perdidos";
-  }
-  if (days > 180) {                              // 6–12 meses: precisam atenção ou em risco
-    if (f >= 3 && m >= 3) return "Precisam Atenção";
-    return "Em Risco";
-  }
-  // Lógica por quintil relativo (apenas clientes com compra nos últimos 6 meses)
-  if (r>=4 && f>=4 && m>=4) return "Campeões";
-  if (r<=1 && f>=3)          return "Perdidos";
-  if (r<=2 && f>=3 && m>=3)  return "Em Risco";
-  if (r<=2 && f>=2)          return "Precisam Atenção";
-  if (r>=4 && f<=2)          return "Novos Clientes";
-  if (r>=3 && f>=3 && m>=3)  return "Leais";
-  if (m>=4)                  return "Grandes Gastadores";
-  if (r>=3 && f>=2)          return "Potencial Leal";
-  return "Regulares";
+  // Segmentação baseada em tempo absoluto (prioridade máxima)
+  if (days > 730) return "Perdidos";     // +2 anos sem comprar
+  if (days > 365) return "Adormecidos"; // 1–2 anos sem comprar
+  if (days > 180) return "Em Risco";    // 6–12 meses sem comprar
+  // Clientes ativos (últimos 6 meses) — classificação por score
+  if (f >= 4 && m >= 4) return "VIP";          // frequência e valor altos
+  if (f >= 3 && m >= 3) return "Leais";        // frequência e valor bons
+  if (f <= 2 && days <= 90) return "Novos";    // recém chegados, poucas compras
+  return "Ocasionais";                          // ativos mas baixa frequência/valor
 }
 
 export default function RFM({ norm, valid, fileName, onReset }) {
@@ -261,14 +247,25 @@ export default function RFM({ norm, valid, fileName, onReset }) {
                 <div style={{ fontSize:11, color:"#aaa", fontFamily:"'JetBrains Mono',monospace" }}>{item.ex}</div>
               </div>
             ))}
-            <div style={{ padding:"12px 14px", background:"#fef3c7", borderRadius:10, border:"1px solid #fde68a", marginTop:4 }}>
-              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:600, color:"#92400e", marginBottom:6 }}>⚠️ Limites absolutos de recência</div>
-              <div style={{ fontSize:11, color:"#92400e", lineHeight:1.5 }}>
-                Independente dos scores R/F/M:<br/>
-                <b>&gt; 2 anos</b> sem comprar → Perdidos<br/>
-                <b>1–2 anos</b> sem comprar → Em Risco / Perdidos<br/>
-                <b>6–12 meses</b> sem comprar → Precisam Atenção / Em Risco
-              </div>
+            <div style={{ padding:"12px 14px", background:"#faf9f7", borderRadius:10, border:"1px solid #f0ede8", marginTop:4 }}>
+              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:600, color:"#1a1a2e", marginBottom:8 }}>🗂️ Lógica dos 7 segmentos</div>
+              {[
+                { seg:"👑 VIP",         rule:"Ativos ≤180d · F≥4 e M≥4",        action:"Programa de fidelidade, relacionamento direto" },
+                { seg:"⭐ Leais",        rule:"Ativos ≤180d · F≥3 e M≥3",        action:"Upsell, manter engajamento" },
+                { seg:"✨ Novos",        rule:"Ativos ≤90d · F≤2 compras",        action:"Sequência pós-primeira compra" },
+                { seg:"🔵 Ocasionais",   rule:"Ativos ≤180d · baixo F ou M",      action:"Estimular frequência, promoções" },
+                { seg:"⚠️ Em Risco",     rule:"180–365 dias sem comprar",          action:"Campanha de reativação ativa" },
+                { seg:"😴 Adormecidos",  rule:"365–730 dias sem comprar",          action:"Win-back de última chance" },
+                { seg:"💀 Perdidos",     rule:"730+ dias sem comprar",             action:"Suppression ou campanha low-cost" },
+              ].map(item=>(
+                <div key={item.seg} style={{ display:"flex", flexDirection:"column", padding:"6px 0", borderBottom:"1px solid #f0ede8" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:600, color:"#1a1a2e" }}>{item.seg}</span>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#aaa" }}>{item.rule}</span>
+                  </div>
+                  <span style={{ fontSize:10, color:"#888", marginTop:1 }}>{item.action}</span>
+                </div>
+              ))}
             </div>
             <div style={{ marginTop:16 }}>
               <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>Escala visual</div>
