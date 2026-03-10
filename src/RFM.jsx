@@ -61,7 +61,19 @@ function toExportRow(c) {
     "rfm_total_gasto": c.total.toFixed(2).replace(".",","),
   };
 }
-function classify(r, f, m) {
+function classify(r, f, m, days) {
+  // Limites absolutos de recência — override dos scores relativos
+  // Nenhum cliente inativo por muito tempo pode ser classificado como ativo
+  if (days > 730) return "Perdidos";            // +2 anos: perdidos
+  if (days > 365) {                              // 1–2 anos: em risco ou perdidos
+    if (f >= 3 && m >= 3) return "Em Risco";
+    return "Perdidos";
+  }
+  if (days > 180) {                              // 6–12 meses: precisam atenção ou em risco
+    if (f >= 3 && m >= 3) return "Precisam Atenção";
+    return "Em Risco";
+  }
+  // Lógica por quintil relativo (apenas clientes com compra nos últimos 6 meses)
   if (r>=4 && f>=4 && m>=4) return "Campeões";
   if (r<=1 && f>=3)          return "Perdidos";
   if (r<=2 && f>=3 && m>=3)  return "Em Risco";
@@ -106,7 +118,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
       const rScore = 6 - quintileScore(rValsAsc, rec);
       const fScore = quintileScore(fValsAsc, c.orders);
       const mScore = quintileScore(mValsAsc, c.total);
-      const segment = classify(rScore, fScore, mScore);
+      const segment = classify(rScore, fScore, mScore, rec);
       return { ...c, recency: rec, rScore, fScore, mScore, rfmScore: rScore*100+fScore*10+mScore, segment };
     });
     const segMap = {};
@@ -249,6 +261,15 @@ export default function RFM({ norm, valid, fileName, onReset }) {
                 <div style={{ fontSize:11, color:"#aaa", fontFamily:"'JetBrains Mono',monospace" }}>{item.ex}</div>
               </div>
             ))}
+            <div style={{ padding:"12px 14px", background:"#fef3c7", borderRadius:10, border:"1px solid #fde68a", marginTop:4 }}>
+              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:600, color:"#92400e", marginBottom:6 }}>⚠️ Limites absolutos de recência</div>
+              <div style={{ fontSize:11, color:"#92400e", lineHeight:1.5 }}>
+                Independente dos scores R/F/M:<br/>
+                <b>&gt; 2 anos</b> sem comprar → Perdidos<br/>
+                <b>1–2 anos</b> sem comprar → Em Risco / Perdidos<br/>
+                <b>6–12 meses</b> sem comprar → Precisam Atenção / Em Risco
+              </div>
+            </div>
             <div style={{ marginTop:16 }}>
               <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>Escala visual</div>
               <div style={{ display:"flex", gap:6 }}>
