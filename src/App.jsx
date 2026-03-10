@@ -8,7 +8,7 @@ import {
 } from "@clerk/react";
 import Dashboard from "./Dashboard";
 import RFM from "./RFM";
-import { loadSheet } from "./sheetsLoader";
+import { loadSheet, getCacheAge, clearCache } from "./sheetsLoader";
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 
@@ -55,6 +55,8 @@ function AppContent() {
   const [processing, setProcessing] = useState(false);
   const [progress,   setProgress]   = useState(0);
   const [error,      setError]      = useState("");
+  const [fromCache,  setFromCache]  = useState(false);
+  const [cacheAge,   setCacheAge]   = useState("");
 
   // Processa rows em norm/valid
   useEffect(() => {
@@ -76,14 +78,16 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [data]);
 
-  // Carrega planilha
-  const fetchSheet = useCallback(async () => {
+  // Carrega planilha (forceRefresh = true limpa cache)
+  const fetchSheet = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError("");
     setProgress(10);
     try {
-      const { rows, fileName: fn } = await loadSheet((p) => setProgress(10 + p * 0.7));
+      const { rows, fileName: fn, fromCache: cached } = await loadSheet((p) => setProgress(p), forceRefresh);
       setFileName(fn);
+      setFromCache(cached);
+      setCacheAge(cached ? (getCacheAge() || "") : "");
       setData(rows);
       setLoading(false);
     } catch (err) {
@@ -98,7 +102,7 @@ function AppContent() {
   const refresh = () => {
     setData([]); setNorm([]); setValid([]);
     setError("");
-    fetchSheet();
+    fetchSheet(true); // forceRefresh: ignora cache
   };
 
   // Loading
@@ -145,9 +149,14 @@ function AppContent() {
         <button onClick={() => setPage("rfm")} style={{ padding: "9px 18px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 13, background: page === "rfm" ? "#1a1a2e" : "transparent", color: page === "rfm" ? "#fff" : "#888", fontWeight: 600, transition: "all 0.15s" }}>
           RFM
         </button>
-        <button onClick={refresh} title="Recarregar dados da planilha" style={{ padding: "9px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 13, background: "transparent", color: "#2d6a4f", fontWeight: 700, transition: "all 0.15s" }}>
+        <button onClick={refresh} title="Recarregar dados da planilha (ignora cache)" style={{ padding: "9px 14px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 13, background: "transparent", color: "#2d6a4f", fontWeight: 700, transition: "all 0.15s" }}>
           ↻
         </button>
+        {fromCache && cacheAge && (
+          <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: "#bbb", paddingRight: 4 }} title="Dados em cache local — clique ↻ para atualizar">
+            {cacheAge}
+          </span>
+        )}
         <div style={{ width: 1, height: 20, background: "#e8e4de", margin: "0 2px" }}/>
         {/* Avatar + logout do Clerk */}
         <UserButton afterSignOutUrl={window.location.href} appearance={{
