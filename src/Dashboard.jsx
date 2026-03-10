@@ -41,9 +41,9 @@ function KPI({label,value,sub,accent="#1a1a2e"}) {
   return (
     <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:"22px 20px",position:"relative",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
       <div style={{position:"absolute",top:0,left:0,width:4,height:"100%",background:accent,borderRadius:"14px 0 0 14px"}}/>
-      <div style={{fontSize:10,fontFamily:"'DM Mono',monospace",letterSpacing:"0.12em",color:"#aaa",textTransform:"uppercase",marginBottom:6}}>{label}</div>
-      <div style={{fontSize:26,fontFamily:"'Playfair Display',serif",fontWeight:700,color:"#1a1a2e",lineHeight:1}}>{value}</div>
-      {sub && <div style={{fontSize:11,color:"#bbb",fontFamily:"'DM Mono',monospace",marginTop:4}}>{sub}</div>}
+      <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.12em",color:"#aaa",textTransform:"uppercase",marginBottom:6}}>{label}</div>
+      <div style={{fontSize:26,fontFamily:"'Outfit',sans-serif",fontWeight:700,color:"#1a1a2e",lineHeight:1}}>{value}</div>
+      {sub && <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginTop:4}}>{sub}</div>}
     </div>
   );
 }
@@ -226,28 +226,28 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
   };
 
   return (
-    <div style={{minHeight:"100vh",background:"#faf9f7",fontFamily:"'DM Sans',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:"#faf9f7",fontFamily:"'Inter',sans-serif"}}>
       {/* Header */}
       <div style={{background:"#1a1a2e",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 36px",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <span style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:"#fff",fontWeight:600}}>Analytics</span>
+          <span style={{fontFamily:"'Outfit',sans-serif",fontSize:18,color:"#fff",fontWeight:600}}>Analytics</span>
           <div style={{width:1,height:18,background:"#ffffff20"}}/>
-          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#ffffff50"}}>{fileName}</span>
+          <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#ffffff50"}}>{fileName}</span>
         </div>
         <div style={{display:"flex",gap:4}}>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?"#ffffff18":"transparent",border:"none",color:tab===t.id?"#fff":"#ffffff55",padding:"7px 16px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:tab===t.id?500:400}}>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{background:tab===t.id?"#ffffff18":"transparent",border:"none",color:tab===t.id?"#fff":"#ffffff55",padding:"7px 16px",borderRadius:8,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:tab===t.id?500:400}}>
               {t.label}
             </button>
           ))}
         </div>
-        <button onClick={onReset} style={{background:"transparent",border:"1px solid #ffffff30",color:"#ffffff55",padding:"5px 14px",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"'DM Mono',monospace"}}>Trocar arquivo</button>
+        <button onClick={onReset} style={{background:"transparent",border:"1px solid #ffffff30",color:"#ffffff55",padding:"5px 14px",borderRadius:8,cursor:"pointer",fontSize:12,fontFamily:"'JetBrains Mono',monospace"}}>Trocar arquivo</button>
       </div>
 
       {/* Insights */}
       {insights.length > 0 && (
         <div style={{padding:"16px 36px",borderBottom:"1px solid #e8e4de",background:"#faf9f7"}}>
-          <div style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#aaa",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:10}}>
+          <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#aaa",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:10}}>
             Insights automáticos — {insights.length} alerta{insights.length>1?"s":""}
           </div>
           <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:4}}>
@@ -266,47 +266,47 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
             <KPI label="Top Cliente"        value={overview.clientList[0]?.name?.split(" ")[0]||"—"} sub={fmt(overview.clientList[0]?.total)} accent="#457b9d"/>
           </div>
           {overview.excluded>0 && (
-            <div style={{background:"#fff8f0",border:"1px solid #fde8cc",borderRadius:10,padding:"10px 18px",marginBottom:24,fontFamily:"'DM Mono',monospace",fontSize:12,color:"#92400e"}}>
+            <div style={{background:"#fff8f0",border:"1px solid #fde8cc",borderRadius:10,padding:"10px 18px",marginBottom:24,fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:"#92400e"}}>
               ⚠️ <strong>{fmtN(overview.excluded)}</strong> pedido(s) excluídos — sem status ou cancelados.
             </div>
           )}
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:18,marginBottom:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento Mensal</div>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento Mensal</div>
               {overview.monthlyData.length>0?(
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={overview.monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
-                    <XAxis dataKey="month" tick={{fontFamily:"'DM Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                    <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontFamily:"'DM Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                    <Tooltip formatter={v=>[fmt(v),"Receita"]} contentStyle={{fontFamily:"'DM Sans',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
+                    <XAxis dataKey="month" tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
+                    <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
+                    <Tooltip formatter={v=>[fmt(v),"Receita"]} contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
                     <Line type="monotone" dataKey="revenue" stroke="#1a1a2e" strokeWidth={2.5} dot={{r:3,fill:"#1a1a2e"}}/>
                   </LineChart>
                 </ResponsiveContainer>
-              ):<div style={{height:200,display:"flex",alignItems:"center",justifyContent:"center",color:"#ddd",fontFamily:"'DM Mono',monospace",fontSize:12}}>Sem dados de data</div>}
+              ):<div style={{height:200,display:"flex",alignItems:"center",justifyContent:"center",color:"#ddd",fontFamily:"'JetBrains Mono',monospace",fontSize:12}}>Sem dados de data</div>}
             </div>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Status dos Pedidos</div>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Status dos Pedidos</div>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie data={overview.statusData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} dataKey="value" paddingAngle={3}>
                     {overview.statusData.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
                   </Pie>
-                  <Tooltip contentStyle={{fontFamily:"'DM Sans',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
-                  <Legend iconType="circle" wrapperStyle={{fontFamily:"'DM Sans',sans-serif",fontSize:12}}/>
+                  <Tooltip contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
+                  <Legend iconType="circle" wrapperStyle={{fontFamily:"'Inter',sans-serif",fontSize:12}}/>
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
           {overview.stateData.length>0 && (
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento por Estado</div>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento por Estado</div>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={overview.stateData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
-                  <XAxis dataKey="state" tick={{fontFamily:"'DM Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                  <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontFamily:"'DM Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                  <Tooltip formatter={v=>[fmt(v),"Faturamento"]} contentStyle={{fontFamily:"'DM Sans',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
+                  <XAxis dataKey="state" tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
+                  <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
+                  <Tooltip formatter={v=>[fmt(v),"Faturamento"]} contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
                   <Bar dataKey="revenue" fill="#1a1a2e" radius={[5,5,0,0]}/>
                 </BarChart>
               </ResponsiveContainer>
@@ -327,16 +327,16 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Recência</div>
-              <div style={{fontSize:11,color:"#bbb",fontFamily:"'DM Mono',monospace",marginBottom:20}}>Última compra há menos de N dias</div>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Recência</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Última compra há menos de N dias</div>
               {[{label:"Clientes +360 dias",v:intel.r360,c:"#1a1a2e"},{label:"Clientes +180 dias",v:intel.r180,c:"#457b9d"},{label:"Clientes +90 dias",v:intel.r90,c:"#2d6a4f"}].map(row=>{
                 const pct=intel.uniqueClients?(row.v/intel.uniqueClients*100).toFixed(1):0;
                 return <div key={row.label} style={{marginBottom:16}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
                     <span style={{fontSize:13,color:"#555"}}>{row.label}</span>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(row.v)}</span>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#bbb",width:38,textAlign:"right"}}>{pct}%</span>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(row.v)}</span>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#bbb",width:38,textAlign:"right"}}>{pct}%</span>
                     </div>
                   </div>
                   <div style={{height:8,background:"#f0ede8",borderRadius:4}}>
@@ -346,16 +346,16 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
               })}
             </div>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Frequência</div>
-              <div style={{fontSize:11,color:"#bbb",fontFamily:"'DM Mono',monospace",marginBottom:20}}>Clientes com N ou mais pedidos</div>
+              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Frequência</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Clientes com N ou mais pedidos</div>
               {[{label:"5+ Compras",v:intel.f5,c:"#e76f51"},{label:"10+ Compras",v:intel.f10,c:"#f4a261"},{label:"20+ Compras",v:intel.f20,c:"#ffd166"}].map(row=>{
                 const pct=intel.uniqueClients?(row.v/intel.uniqueClients*100).toFixed(1):0;
                 return <div key={row.label} style={{marginBottom:16}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
                     <span style={{fontSize:13,color:"#555"}}>{row.label}</span>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(row.v)}</span>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#bbb",width:38,textAlign:"right"}}>{pct}%</span>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmtN(row.v)}</span>
+                      <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#bbb",width:38,textAlign:"right"}}>{pct}%</span>
                     </div>
                   </div>
                   <div style={{height:8,background:"#f0ede8",borderRadius:4}}>
@@ -364,15 +364,15 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                 </div>;
               })}
               <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #f0ede8"}}>
-                <div style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Faturamento Jet — Top 20% clientes</div>
-                <div style={{fontSize:24,fontFamily:"'Playfair Display',serif",fontWeight:700,color:"#1a1a2e"}}>{fmt(intel.fatJet)}</div>
-                <div style={{fontSize:11,color:"#bbb",fontFamily:"'DM Mono',monospace",marginTop:2}}>{intel.totalRev?(intel.fatJet/intel.totalRev*100).toFixed(1):0}% do faturamento total</div>
+                <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Faturamento Jet — Top 20% clientes</div>
+                <div style={{fontSize:24,fontFamily:"'Outfit',sans-serif",fontWeight:700,color:"#1a1a2e"}}>{fmt(intel.fatJet)}</div>
+                <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>{intel.totalRev?(intel.fatJet/intel.totalRev*100).toFixed(1):0}% do faturamento total</div>
               </div>
             </div>
           </div>
           <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-            <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Segmentação por Gasto Lifetime</div>
-            <div style={{fontSize:11,color:"#bbb",fontFamily:"'DM Mono',monospace",marginBottom:20}}>Distribuição de clientes e receita por faixa</div>
+            <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Segmentação por Gasto Lifetime</div>
+            <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Distribuição de clientes e receita por faixa</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
               {intel.spendBuckets.map((b,i)=>{
                 const pctC=intel.uniqueClients?(b.count/intel.uniqueClients*100).toFixed(1):0;
@@ -380,12 +380,12 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                 const bgs=["#e8e4de","#c8d8e8","#457b9d","#2d6a4f","#1a1a2e"];
                 return <div key={b.label} style={{background:"#faf9f7",borderRadius:10,padding:"16px 14px",border:"1px solid #e8e4de",position:"relative",overflow:"hidden"}}>
                   <div style={{position:"absolute",bottom:0,left:0,width:"100%",height:pctR+"%",maxHeight:"50%",background:bgs[i],opacity:0.12}}/>
-                  <div style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:"#aaa",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>{b.label}</div>
-                  <div style={{fontSize:26,fontFamily:"'Playfair Display',serif",fontWeight:700,color:"#1a1a2e",lineHeight:1}}>{fmtN(b.count)}</div>
-                  <div style={{fontSize:11,color:"#999",fontFamily:"'DM Mono',monospace",marginTop:2,marginBottom:10}}>{pctC}% dos clientes</div>
+                  <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#aaa",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>{b.label}</div>
+                  <div style={{fontSize:26,fontFamily:"'Outfit',sans-serif",fontWeight:700,color:"#1a1a2e",lineHeight:1}}>{fmtN(b.count)}</div>
+                  <div style={{fontSize:11,color:"#999",fontFamily:"'JetBrains Mono',monospace",marginTop:2,marginBottom:10}}>{pctC}% dos clientes</div>
                   <div style={{height:1,background:"#e8e4de",marginBottom:8}}/>
-                  <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",fontWeight:600,color:"#555"}}>{fmt(b.revenue)}</div>
-                  <div style={{fontSize:10,color:"#bbb",fontFamily:"'DM Mono',monospace",marginTop:2}}>{pctR}% da receita</div>
+                  <div style={{fontSize:12,fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:"#555"}}>{fmt(b.revenue)}</div>
+                  <div style={{fontSize:10,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>{pctR}% da receita</div>
                 </div>;
               })}
             </div>
@@ -396,13 +396,13 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
         {tab==="clients" && overview && <>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
             <div>
-              <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#1a1a2e",margin:0}}>Ranking de Clientes</h2>
+              <h2 style={{fontFamily:"'Outfit',sans-serif",fontSize:22,color:"#1a1a2e",margin:0}}>Ranking de Clientes</h2>
               <p style={{color:"#aaa",fontSize:13,margin:"4px 0 0",fontWeight:300}}>Ordenado por valor total de compras</p>
             </div>
             <div style={{display:"flex",gap:10,alignItems:"center"}}>
               <input placeholder="Buscar cliente..." value={search} onChange={e=>setSearch(e.target.value)}
-                style={{padding:"9px 18px",border:"1px solid #e8e4de",borderRadius:40,fontFamily:"'DM Sans',sans-serif",fontSize:13,outline:"none",background:"#fff",width:200,color:"#1a1a2e"}}/>
-              <button onClick={handleExportClients} style={{padding:"9px 18px",background:"#1a1a2e",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#fff",fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
+                style={{padding:"9px 18px",border:"1px solid #e8e4de",borderRadius:40,fontFamily:"'Inter',sans-serif",fontSize:13,outline:"none",background:"#fff",width:200,color:"#1a1a2e"}}/>
+              <button onClick={handleExportClients} style={{padding:"9px 18px",background:"#1a1a2e",border:"none",borderRadius:10,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontSize:13,color:"#fff",fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
                 ↓ Exportar CSV
               </button>
             </div>
@@ -412,7 +412,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
               <thead>
                 <tr style={{background:"#faf9f7",borderBottom:"1px solid #e8e4de"}}>
                   {["#","Cliente","Pedidos","Total Gasto","Ticket Médio","Participação"].map(h=>(
-                    <th key={h} style={{padding:"12px 18px",textAlign:"left",fontSize:10,fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",color:"#aaa",textTransform:"uppercase",fontWeight:500}}>{h}</th>
+                    <th key={h} style={{padding:"12px 18px",textAlign:"left",fontSize:10,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.1em",color:"#aaa",textTransform:"uppercase",fontWeight:500}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -421,29 +421,29 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                   const rank=overview.clientList.indexOf(c)+1;
                   const pct=overview.revenue?(c.total/overview.revenue*100).toFixed(1):0;
                   return <tr key={c.id} style={{borderBottom:"1px solid #f5f2ee"}} onMouseEnter={e=>e.currentTarget.style.background="#faf9f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{padding:"12px 18px"}}><span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:rank<=3?"#1a1a2e":"#ccc",fontWeight:rank<=3?700:400}}>{rank<=3?["🥇","🥈","🥉"][rank-1]:`#${rank}`}</span></td>
-                    <td style={{padding:"12px 18px"}}><div style={{fontWeight:500,color:"#1a1a2e",fontSize:14}}>{c.name||"—"}</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#ccc"}}>{c.id}</div></td>
-                    <td style={{padding:"12px 18px",fontFamily:"'DM Mono',monospace",fontSize:13,color:"#666"}}>{c.orders}</td>
-                    <td style={{padding:"12px 18px",fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmt(c.total)}</td>
-                    <td style={{padding:"12px 18px",fontFamily:"'DM Mono',monospace",fontSize:13,color:"#666"}}>{fmt(c.orders?c.total/c.orders:0)}</td>
+                    <td style={{padding:"12px 18px"}}><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:rank<=3?"#1a1a2e":"#ccc",fontWeight:rank<=3?700:400}}>{rank<=3?["🥇","🥈","🥉"][rank-1]:`#${rank}`}</span></td>
+                    <td style={{padding:"12px 18px"}}><div style={{fontWeight:500,color:"#1a1a2e",fontSize:14}}>{c.name||"—"}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#ccc"}}>{c.id}</div></td>
+                    <td style={{padding:"12px 18px",fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:"#666"}}>{c.orders}</td>
+                    <td style={{padding:"12px 18px",fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:600,color:"#1a1a2e"}}>{fmt(c.total)}</td>
+                    <td style={{padding:"12px 18px",fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:"#666"}}>{fmt(c.orders?c.total/c.orders:0)}</td>
                     <td style={{padding:"12px 18px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <div style={{width:60,height:6,background:"#f0ede8",borderRadius:3}}><div style={{width:`${Math.min(pct*5,100)}%`,height:"100%",background:"#1a1a2e",borderRadius:3}}/></div>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#aaa"}}>{pct}%</span>
+                        <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#aaa"}}>{pct}%</span>
                       </div>
                     </td>
                   </tr>;
                 })}
               </tbody>
             </table>
-            {filteredClients.length>50 && <div style={{padding:"14px",textAlign:"center",fontFamily:"'DM Mono',monospace",fontSize:12,color:"#bbb",borderTop:"1px solid #f0ede8"}}>Mostrando 50 de {fmtN(filteredClients.length)} clientes · Use exportar para ver todos</div>}
+            {filteredClients.length>50 && <div style={{padding:"14px",textAlign:"center",fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:"#bbb",borderTop:"1px solid #f0ede8"}}>Mostrando 50 de {fmtN(filteredClients.length)} clientes · Use exportar para ver todos</div>}
           </div>
         </>}
 
         {/* Pedidos */}
         {tab==="orders" && <>
           <div style={{marginBottom:20}}>
-            <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"#1a1a2e",margin:0}}>Todos os Pedidos</h2>
+            <h2 style={{fontFamily:"'Outfit',sans-serif",fontSize:22,color:"#1a1a2e",margin:0}}>Todos os Pedidos</h2>
             <p style={{color:"#aaa",fontSize:13,margin:"4px 0 0",fontWeight:300}}>{fmtN(data.length)} registros carregados</p>
           </div>
           <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,overflow:"auto",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
@@ -451,7 +451,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
               <thead>
                 <tr style={{background:"#faf9f7",borderBottom:"1px solid #e8e4de"}}>
                   {Object.keys(data[0]||{}).slice(0,10).map(h=>(
-                    <th key={h} style={{padding:"12px 14px",textAlign:"left",whiteSpace:"nowrap",fontSize:10,fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",color:"#aaa",textTransform:"uppercase",fontWeight:500}}>{h.slice(0,22)}</th>
+                    <th key={h} style={{padding:"12px 14px",textAlign:"left",whiteSpace:"nowrap",fontSize:10,fontFamily:"'JetBrains Mono',monospace",letterSpacing:"0.08em",color:"#aaa",textTransform:"uppercase",fontWeight:500}}>{h.slice(0,22)}</th>
                   ))}
                 </tr>
               </thead>
@@ -465,7 +465,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                 ))}
               </tbody>
             </table>
-            {data.length>100 && <div style={{padding:"14px",textAlign:"center",fontFamily:"'DM Mono',monospace",fontSize:12,color:"#bbb",borderTop:"1px solid #f0ede8"}}>Mostrando 100 de {fmtN(data.length)} registros</div>}
+            {data.length>100 && <div style={{padding:"14px",textAlign:"center",fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:"#bbb",borderTop:"1px solid #f0ede8"}}>Mostrando 100 de {fmtN(data.length)} registros</div>}
           </div>
         </>}
       </div>
