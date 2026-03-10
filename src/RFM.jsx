@@ -252,9 +252,11 @@ export default function RFM({ norm, valid, fileName, onReset }) {
             <div style={{ marginTop:16 }}>
               <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>Escala visual</div>
               <div style={{ display:"flex", gap:6 }}>
-                {[1,2,3,4,5].map(s=>(
-                  <div key={s} style={{ flex:1, height:36, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", background:`rgba(26,26,46,${s*0.18})`, color:s>=4?"#fff":"#555", fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:14 }}>{s}</div>
-                ))}
+                {[1,2,3,4,5].map(s=>{
+                  const hue = Math.round(((s-1)/4)*120);
+                  const light = Math.round(88-(s/5)*45);
+                  return <div key={s} style={{ flex:1, height:36, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", background:`hsl(${hue}, 70%, ${light}%)`, color:light<60?"#fff":"#333", fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:14 }}>{s}</div>;
+                })}
               </div>
             </div>
           </div>

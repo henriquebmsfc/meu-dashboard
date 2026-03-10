@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from "recharts";
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
 const fmt  = v => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);
 const fmtN = v => new Intl.NumberFormat("pt-BR").format(v||0);
@@ -71,6 +71,7 @@ function InsightCard({ type, title, desc }) {
 export default function Dashboard({ data, norm, valid, fileName, onReset }) {
   const [tab,      setTab]      = useState("overview");
   const [search,   setSearch]   = useState("");
+  const [selectedClient, setSelectedClient] = useState(null);
 
   const overview = useMemo(() => {
     if (!valid.length) return null;
@@ -211,6 +212,24 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
     return overview.clientList.filter(c => !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.id?.toLowerCase().includes(search.toLowerCase()));
   }, [overview, search]);
 
+  const clientOrders = useMemo(() => {
+    if (!selectedClient || !norm.length) return [];
+    return norm.filter(r => {
+      const ck = findKey(r, "codigo", "cliente");
+      const nk = findKey(r, "nome");
+      const id = ck ? r[ck] : (nk ? r[nk] : "?");
+      return id === selectedClient.id;
+    }).sort((a, b) => {
+      const dk = findKey(a, "data");
+      const da = dk ? parseDate(a[dk]) : null;
+      const db = dk ? parseDate(b[dk]) : null;
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db - da;
+    });
+  }, [selectedClient, norm]);
+
   const handleExportClients = () => {
     if (!overview) return;
     const rows = overview.clientList.map((c, i) => ({
@@ -270,48 +289,20 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
               ⚠️ <strong>{fmtN(overview.excluded)}</strong> pedido(s) excluídos — sem status ou cancelados.
             </div>
           )}
-          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:18,marginBottom:18}}>
-            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento Mensal</div>
-              {overview.monthlyData.length>0?(
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={overview.monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
-                    <XAxis dataKey="month" tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                    <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                    <Tooltip formatter={v=>[fmt(v),"Receita"]} contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
-                    <Line type="monotone" dataKey="revenue" stroke="#1a1a2e" strokeWidth={2.5} dot={{r:3,fill:"#1a1a2e"}}/>
-                  </LineChart>
-                </ResponsiveContainer>
-              ):<div style={{height:200,display:"flex",alignItems:"center",justifyContent:"center",color:"#ddd",fontFamily:"'JetBrains Mono',monospace",fontSize:12}}>Sem dados de data</div>}
-            </div>
-            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Status dos Pedidos</div>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={overview.statusData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} dataKey="value" paddingAngle={3}>
-                    {overview.statusData.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
-                  </Pie>
-                  <Tooltip contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
-                  <Legend iconType="circle" wrapperStyle={{fontFamily:"'Inter',sans-serif",fontSize:12}}/>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          {overview.stateData.length>0 && (
-            <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
-              <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento por Estado</div>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={overview.stateData}>
+          <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginBottom:18}}>
+            <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:16}}>Faturamento Mensal</div>
+            {overview.monthlyData.length>0?(
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={overview.monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
-                  <XAxis dataKey="state" tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
+                  <XAxis dataKey="month" tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
                   <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,fill:"#bbb"}}/>
-                  <Tooltip formatter={v=>[fmt(v),"Faturamento"]} contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
-                  <Bar dataKey="revenue" fill="#1a1a2e" radius={[5,5,0,0]}/>
-                </BarChart>
+                  <Tooltip formatter={v=>[fmt(v),"Receita"]} contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:13}}/>
+                  <Line type="monotone" dataKey="revenue" stroke="#1a1a2e" strokeWidth={2.5} dot={{r:3,fill:"#1a1a2e"}}/>
+                </LineChart>
               </ResponsiveContainer>
-            </div>
-          )}
+            ):<div style={{height:220,display:"flex",alignItems:"center",justifyContent:"center",color:"#ddd",fontFamily:"'JetBrains Mono',monospace",fontSize:12}}>Sem dados de data</div>}
+          </div>
         </>}
 
         {/* Inteligência */}
@@ -420,7 +411,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                 {filteredClients.slice(0,50).map(c=>{
                   const rank=overview.clientList.indexOf(c)+1;
                   const pct=overview.revenue?(c.total/overview.revenue*100).toFixed(1):0;
-                  return <tr key={c.id} style={{borderBottom:"1px solid #f5f2ee"}} onMouseEnter={e=>e.currentTarget.style.background="#faf9f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  return <tr key={c.id} onClick={()=>setSelectedClient(c)} style={{borderBottom:"1px solid #f5f2ee",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#faf9f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{padding:"12px 18px"}}><span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:rank<=3?"#1a1a2e":"#ccc",fontWeight:rank<=3?700:400}}>{rank<=3?["🥇","🥈","🥉"][rank-1]:`#${rank}`}</span></td>
                     <td style={{padding:"12px 18px"}}><div style={{fontWeight:500,color:"#1a1a2e",fontSize:14}}>{c.name||"—"}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#ccc"}}>{c.id}</div></td>
                     <td style={{padding:"12px 18px",fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:"#666"}}>{c.orders}</td>
@@ -469,6 +460,78 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           </div>
         </>}
       </div>
-    </div>
+
+      {/* Painel de detalhe do cliente */}
+    {selectedClient && overview && (
+      <>
+        <div onClick={()=>setSelectedClient(null)} style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.18)", zIndex:199 }}/>
+        <div style={{ position:"fixed", top:0, right:0, width:440, height:"100vh", background:"#fff", boxShadow:"-4px 0 28px rgba(0,0,0,0.13)", zIndex:200, display:"flex", flexDirection:"column" }}>
+          {/* Header */}
+          <div style={{ padding:"24px 28px", borderBottom:"1px solid #f0ede8", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
+            <div>
+              <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:6 }}>Detalhe do Cliente</div>
+              <div style={{ fontSize:20, fontWeight:600, fontFamily:"'Outfit',sans-serif", color:"#1a1a2e", lineHeight:1.2 }}>{selectedClient.name}</div>
+              {selectedClient.id !== selectedClient.name && (
+                <div style={{ fontSize:11, color:"#ccc", fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>{selectedClient.id}</div>
+              )}
+            </div>
+            <button onClick={()=>setSelectedClient(null)} style={{ background:"#f5f2ee", border:"none", borderRadius:8, width:32, height:32, cursor:"pointer", fontSize:20, color:"#666", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+          </div>
+          {/* KPIs */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, padding:"20px 28px", flexShrink:0 }}>
+            {[
+              { label:"Total Gasto",   value:fmt(selectedClient.total) },
+              { label:"Pedidos",       value:fmtN(selectedClient.orders) },
+              { label:"Ticket Médio",  value:fmt(selectedClient.orders ? selectedClient.total/selectedClient.orders : 0) },
+              { label:"Participação",  value:overview.revenue ? (selectedClient.total/overview.revenue*100).toFixed(2)+"%" : "—" },
+            ].map(k=>(
+              <div key={k.label} style={{ background:"#faf9f7", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{k.label}</div>
+                <div style={{ fontSize:18, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e" }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+          {/* Histórico */}
+          <div style={{ padding:"0 28px 12px", flexShrink:0 }}>
+            <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.12em" }}>
+              Histórico de Pedidos · {fmtN(clientOrders.length)} registros
+            </div>
+          </div>
+          <div style={{ overflowY:"auto", flex:1, padding:"0 28px 28px" }}>
+            {clientOrders.length === 0 ? (
+              <div style={{ fontSize:13, color:"#bbb", fontFamily:"'JetBrains Mono',monospace" }}>Nenhum pedido encontrado.</div>
+            ) : (
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead>
+                  <tr>
+                    {["Data","Status","Valor"].map(h=>(
+                      <th key={h} style={{ padding:"8px 6px", textAlign: h==="Valor"?"right":"left", fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:500, borderBottom:"1px solid #f0ede8" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientOrders.map((r,i)=>{
+                    const dk = findKey(r,"data");
+                    const vk = findKey(r,"valor");
+                    const sk = findKey(r,"status");
+                    const d = dk ? parseDate(r[dk]) : null;
+                    const v = parseVal(vk ? r[vk] : 0);
+                    const s = sk ? r[sk] : "—";
+                    return (
+                      <tr key={i} style={{ borderBottom:"1px solid #f5f2ee" }}>
+                        <td style={{ padding:"10px 6px", fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#555" }}>{d ? d.toLocaleDateString("pt-BR") : "—"}</td>
+                        <td style={{ padding:"10px 6px", fontSize:12, color:"#888" }}>{s}</td>
+                        <td style={{ padding:"10px 6px", fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:600, color:"#1a1a2e", textAlign:"right" }}>{fmt(v)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </>
+    )}
+  </div>
   );
 }
