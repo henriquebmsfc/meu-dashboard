@@ -162,14 +162,34 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
     const crmArr=Object.values(crmMap2);
     const crmTot=crmArr.length,crmEm=crmArr.filter(c=>c.email).length,crmPh=crmArr.filter(c=>c.phone).length,crmBo=crmArr.filter(c=>c.email&&c.phone).length;
 
+    // Curva ABC de clientes (sorted já está ordenado por receita desc)
+    let abcCumRev=0;
+    const abcA={clients:0,revenue:0},abcB={clients:0,revenue:0},abcC={clients:0,revenue:0};
+    const abcStep=Math.max(1,Math.floor(sorted.length/80));
+    const abcCurve=[{cp:0,rp:0,diag:0}];
+    sorted.forEach((c,i)=>{
+      const prevPct=totalRev?abcCumRev/totalRev:0;
+      abcCumRev+=c.total;
+      if(prevPct<0.80){abcA.clients++;abcA.revenue+=c.total;}
+      else if(prevPct<0.95){abcB.clients++;abcB.revenue+=c.total;}
+      else{abcC.clients++;abcC.revenue+=c.total;}
+      if((i+1)%abcStep===0||i===sorted.length-1){
+        const cp=parseFloat(((i+1)/sorted.length*100).toFixed(1));
+        const rp=parseFloat((totalRev?abcCumRev/totalRev*100:0).toFixed(1));
+        abcCurve.push({cp,rp,diag:cp});
+      }
+    });
+
     return {
       totalRev, uniqueClients:cl.length, totalOrders:valid.length,
       avgOrder:valid.length?totalRev/valid.length:0,
       avgClient:cl.length?totalRev/cl.length:0,
       single, reorder:cl.length?((cl.length-single)/cl.length*100).toFixed(1):0,
+      r30:cl.filter(c=>ds(c.last)<=30).length,
       r90:cl.filter(c=>ds(c.last)<=90).length,
       r180:cl.filter(c=>ds(c.last)<=180).length,
       r360:cl.filter(c=>ds(c.last)<=360).length,
+      f2_5:cl.filter(c=>c.orders>=2&&c.orders<=5).length,
       f5:cl.filter(c=>c.orders>=5).length,
       f10:cl.filter(c=>c.orders>=10).length,
       f20:cl.filter(c=>c.orders>=20).length,
@@ -179,6 +199,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
       ageBuckets, withAge:Object.keys(cAge).length,
       pTypes, hCounts, dCounts,
       crmTot, crmEm, crmPh, crmBo,
+      abcA, abcB, abcC, abcCurve,
     };
   }, [valid, norm]);
 
@@ -378,8 +399,13 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
               <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Recência</div>
-              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Última compra há menos de N dias</div>
-              {[{label:"Clientes +360 dias",v:intel.r360,c:"#1a1a2e"},{label:"Clientes +180 dias",v:intel.r180,c:"#457b9d"},{label:"Clientes +90 dias",v:intel.r90,c:"#2d6a4f"}].map(row=>{
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Clientes com última compra dentro do período</div>
+              {[
+                {label:"Ativos ≤30 dias",  v:intel.r30,  c:"#2d6a4f"},
+                {label:"Ativos ≤90 dias",  v:intel.r90,  c:"#457b9d"},
+                {label:"Ativos ≤180 dias", v:intel.r180, c:"#6d6875"},
+                {label:"Ativos ≤360 dias", v:intel.r360, c:"#1a1a2e"},
+              ].map(row=>{
                 const pct=intel.uniqueClients?(row.v/intel.uniqueClients*100).toFixed(1):0;
                 return <div key={row.label} style={{marginBottom:16}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
@@ -397,8 +423,14 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
             </div>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
               <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Frequência</div>
-              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Clientes com N ou mais pedidos</div>
-              {[{label:"5+ Compras",v:intel.f5,c:"#e76f51"},{label:"10+ Compras",v:intel.f10,c:"#f4a261"},{label:"20+ Compras",v:intel.f20,c:"#ffd166"}].map(row=>{
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Distribuição por número de compras</div>
+              {[
+                {label:"1 compra",    v:intel.single, c:"#e76f51"},
+                {label:"2–5 compras", v:intel.f2_5,   c:"#f4a261"},
+                {label:"5+ compras",  v:intel.f5,     c:"#2d6a4f"},
+                {label:"10+ compras", v:intel.f10,    c:"#457b9d"},
+                {label:"20+ compras", v:intel.f20,    c:"#1a1a2e"},
+              ].map(row=>{
                 const pct=intel.uniqueClients?(row.v/intel.uniqueClients*100).toFixed(1):0;
                 return <div key={row.label} style={{marginBottom:16}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
@@ -438,6 +470,80 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
                   <div style={{fontSize:10,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>{pctR}% da receita</div>
                 </div>;
               })}
+            </div>
+          </div>
+
+          {/* Curva ABC */}
+          <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginTop:18}}>
+            <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Curva ABC de Clientes</div>
+            <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Concentração de receita — clientes ordenados do maior para o menor gasto</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+              <div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
+                  {[
+                    {seg:"A",color:"#1a1a2e",data:intel.abcA,target:"≈80% receita"},
+                    {seg:"B",color:"#457b9d",data:intel.abcB,target:"≈15% receita"},
+                    {seg:"C",color:"#aaa",   data:intel.abcC,target:"≈5% receita"},
+                  ].map(({seg,color,data,target})=>{
+                    const clientPct=intel.uniqueClients?(data.clients/intel.uniqueClients*100).toFixed(1):0;
+                    const revPct=intel.totalRev?(data.revenue/intel.totalRev*100).toFixed(1):0;
+                    return <div key={seg} style={{background:"#faf9f7",borderRadius:10,padding:"16px 14px",border:"1px solid #e8e4de",position:"relative",overflow:"hidden"}}>
+                      <div style={{position:"absolute",top:0,left:0,width:"100%",height:4,background:color,borderRadius:"10px 10px 0 0"}}/>
+                      <div style={{fontSize:22,fontFamily:"'Outfit',sans-serif",fontWeight:800,color:color,marginBottom:4}}>Classe {seg}</div>
+                      <div style={{fontSize:24,fontFamily:"'Outfit',sans-serif",fontWeight:700,color:"#1a1a2e",lineHeight:1}}>{fmtN(data.clients)}</div>
+                      <div style={{fontSize:10,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginTop:2}}>{clientPct}% dos clientes</div>
+                      <div style={{height:1,background:"#e8e4de",margin:"10px 0"}}/>
+                      <div style={{fontSize:13,fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:"#1a1a2e"}}>{revPct}%</div>
+                      <div style={{fontSize:10,color:"#bbb",fontFamily:"'JetBrains Mono',monospace"}}>da receita · meta {target}</div>
+                    </div>;
+                  })}
+                </div>
+                {(() => {
+                  const tot=intel.uniqueClients||1, rev=intel.totalRev||1;
+                  const aCP=(intel.abcA.clients/tot*100).toFixed(1), bCP=(intel.abcB.clients/tot*100).toFixed(1), cCP=(intel.abcC.clients/tot*100).toFixed(1);
+                  const aRP=(intel.abcA.revenue/rev*100).toFixed(1), bRP=(intel.abcB.revenue/rev*100).toFixed(1), cRP=(intel.abcC.revenue/rev*100).toFixed(1);
+                  return <>
+                    <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>% de clientes por classe</div>
+                    <div style={{height:18,borderRadius:6,overflow:"hidden",display:"flex",marginBottom:4}}>
+                      <div style={{width:aCP+"%",background:"#1a1a2e"}} title={`A: ${aCP}%`}/>
+                      <div style={{width:bCP+"%",background:"#457b9d"}} title={`B: ${bCP}%`}/>
+                      <div style={{width:cCP+"%",background:"#e8e4de"}} title={`C: ${cCP}%`}/>
+                    </div>
+                    <div style={{display:"flex",gap:6,marginBottom:14}}>
+                      {[{l:"A",v:aCP,c:"#1a1a2e"},{l:"B",v:bCP,c:"#457b9d"},{l:"C",v:cCP,c:"#aaa"}].map(x=>(
+                        <span key={x.l} style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:x.c}}>{x.l}: {x.v}%</span>
+                      ))}
+                    </div>
+                    <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>% de receita por classe</div>
+                    <div style={{height:18,borderRadius:6,overflow:"hidden",display:"flex",marginBottom:4}}>
+                      <div style={{width:aRP+"%",background:"#1a1a2e"}} title={`A: ${aRP}%`}/>
+                      <div style={{width:bRP+"%",background:"#457b9d"}} title={`B: ${bRP}%`}/>
+                      <div style={{width:cRP+"%",background:"#e8e4de"}} title={`C: ${cRP}%`}/>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[{l:"A",v:aRP,c:"#1a1a2e"},{l:"B",v:bRP,c:"#457b9d"},{l:"C",v:cRP,c:"#aaa"}].map(x=>(
+                        <span key={x.l} style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:x.c}}>{x.l}: {x.v}%</span>
+                      ))}
+                    </div>
+                  </>;
+                })()}
+              </div>
+              <div>
+                <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#bbb",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Curva de Lorenz — % clientes vs % receita acumulada</div>
+                <ResponsiveContainer width="100%" height={210}>
+                  <LineChart data={intel.abcCurve} margin={{top:4,right:8,bottom:0,left:0}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8"/>
+                    <XAxis dataKey="cp" tickFormatter={v=>v+"%"} tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,fill:"#ccc"}} domain={[0,100]} type="number"/>
+                    <YAxis tickFormatter={v=>v+"%"} tick={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,fill:"#ccc"}} domain={[0,100]}/>
+                    <Tooltip formatter={(v,n)=>[v.toFixed(1)+"%",n==="rp"?"Receita acumulada":"Dist. igual"]} labelFormatter={v=>`${v}% dos clientes`} contentStyle={{fontFamily:"'Inter',sans-serif",borderRadius:8,border:"1px solid #e8e4de",fontSize:12}}/>
+                    <Line type="monotone" dataKey="diag" stroke="#e8e4de" strokeWidth={1.5} strokeDasharray="5 5" dot={false} name="Dist. igual"/>
+                    <Line type="monotone" dataKey="rp" stroke="#1a1a2e" strokeWidth={2.5} dot={false} name="Receita acumulada"/>
+                  </LineChart>
+                </ResponsiveContainer>
+                <div style={{fontSize:10,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginTop:6,textAlign:"center",lineHeight:1.5}}>
+                  Quanto mais a curva se afasta da diagonal, maior a concentração de receita nos top clientes
+                </div>
+              </div>
             </div>
           </div>
 
