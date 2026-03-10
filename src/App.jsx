@@ -110,9 +110,9 @@ function AppContent() {
     <div style={{ minHeight: "100vh", background: "#faf9f7", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
       <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.2em", color: "#aaa", textTransform: "uppercase", marginBottom: 24 }}>
-        {loading ? "buscando planilha" : "processando dados"}
+        {loading ? "carregando arquivo" : "processando dados"}
       </div>
-      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 28, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>{fileName || "Google Sheets"}</div>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 28, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>{fileName || "data.csv"}</div>
       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#bbb", marginBottom: 32 }}>
         {loading ? "carregando linhas..." : `normalizando ${new Intl.NumberFormat("pt-BR").format(data.length)} registros...`}
       </div>
@@ -128,7 +128,7 @@ function AppContent() {
     <div style={{ minHeight: "100vh", background: "#faf9f7", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: 40 }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
       <div style={{ fontSize: 36, marginBottom: 16 }}>⚠️</div>
-      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 10 }}>Erro ao carregar planilha</div>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 600, color: "#1a1a2e", marginBottom: 10 }}>Erro ao carregar dados</div>
       <div style={{ fontSize: 13, color: "#991b1b", fontFamily: "'JetBrains Mono',monospace", padding: "12px 20px", background: "#fee2e2", borderRadius: 10, border: "1px solid #fecaca", marginBottom: 24, maxWidth: 460, textAlign: "center", lineHeight: 1.5 }}>
         {error}
       </div>
@@ -185,9 +185,9 @@ export default function App() {
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
         <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 24, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>⚙️ Configuração necessária</div>
         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: "#666", textAlign: "center", maxWidth: 400, lineHeight: 1.8, padding: "16px 24px", background: "#fff", borderRadius: 12, border: "1px solid #e8e4de" }}>
-          Adicione as variáveis de ambiente no Vercel:<br/>
-          <code style={{ color: "#1a1a2e" }}>VITE_CLERK_PUBLISHABLE_KEY</code><br/>
-          <code style={{ color: "#1a1a2e" }}>VITE_SHEET_URL</code>
+          Adicione a variável de ambiente no Vercel:<br/>
+          <code style={{ color: "#1a1a2e" }}>VITE_CLERK_PUBLISHABLE_KEY</code><br/><br/>
+          E coloque o arquivo <code style={{ color: "#1a1a2e" }}>data.csv</code> na pasta <code style={{ color: "#1a1a2e" }}>public/</code>
         </div>
       </div>
     );

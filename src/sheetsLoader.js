@@ -3,18 +3,9 @@ import * as Papa from "papaparse";
 const CACHE_TTL = 8 * 60 * 60 * 1000; // 8 horas
 const DB_NAME   = "dashboard_cache_v1";
 const STORE     = "sheets";
+const CSV_PATH  = "/data.csv";
 
-function toCSVExport(url) {
-  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (!m) return url;
-  if (url.includes("export") || url.includes("/pub?")) return url;
-  const gid = url.match(/gid=(\d+)/)?.[1] || "0";
-  return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
-}
-
-const RAW_URL = import.meta.env.VITE_SHEET_URL || "";
-
-// ── IndexedDB (sem limite prático de tamanho) ──────────────────────────────
+// ── IndexedDB ─────────────────────────────────────────────────────────────────
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
@@ -61,35 +52,31 @@ function formatAge(ms) {
   return mins < 60 ? `${mins} min atrás` : `${Math.floor(mins / 60)}h atrás`;
 }
 
-// ── API pública ───────────────────────────────────────────────────────────
+// ── API pública ───────────────────────────────────────────────────────────────
 export async function clearCache() { await idbDel(); }
 
 export async function loadSheet(onProgress, forceRefresh = false) {
-  if (!RAW_URL) throw new Error("VITE_SHEET_URL não configurado");
-
   // Cache hit
   if (!forceRefresh) {
     const cached = await idbGet();
     if (cached && Date.now() - cached.time < CACHE_TTL) {
       onProgress?.(100);
-      return { rows: cached.rows, fileName: "Google Sheets", fromCache: true, cacheAge: formatAge(cached.time) };
+      return { rows: cached.rows, fileName: "data.csv", fromCache: true, cacheAge: formatAge(cached.time) };
     }
   }
 
-  // Fetch + parse em Web Worker (não trava a UI)
-  const url = toCSVExport(RAW_URL);
   onProgress?.(5);
 
   return new Promise((resolve, reject) => {
     const rows = [];
     let tick = 0;
 
-    Papa.parse(url, {
-      download:      true,
-      header:        true,
-      skipEmptyLines:true,
-      worker:        true,          // parse em background thread
-      chunkSize:     1024 * 1024,   // 1MB por chunk
+    Papa.parse(CSV_PATH, {
+      download:       true,
+      header:         true,
+      skipEmptyLines: true,
+      worker:         true,
+      chunkSize:      1024 * 1024,
       chunk: (results) => {
         rows.push(...results.data);
         tick++;
@@ -97,12 +84,13 @@ export async function loadSheet(onProgress, forceRefresh = false) {
       },
       complete: () => {
         onProgress?.(90);
-        idbSet(rows);               // salva no IndexedDB (async, não bloqueia)
+        idbSet(rows);
         onProgress?.(100);
-        resolve({ rows, fileName: "Google Sheets", fromCache: false, cacheAge: null });
+        resolve({ rows, fileName: "data.csv", fromCache: false, cacheAge: null });
       },
-      error: () => reject(new Error(
-        "Não foi possível carregar. Verifique se a planilha está compartilhada como 'qualquer pessoa com o link pode ver'."
+      error: (err) => reject(new Error(
+        `Não foi possível carregar o arquivo de dados. ` +
+        `Certifique-se de que o arquivo data.csv está na pasta public/ do projeto.`
       )),
     });
   });
