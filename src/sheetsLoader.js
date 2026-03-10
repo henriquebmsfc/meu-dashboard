@@ -1,44 +1,32 @@
-const SHEET_ID = import.meta.env.VITE_SHEET_ID;
+import * as Papa from "papaparse";
 
-export async function loadGoogleSheet(accessToken) {
-  if (!SHEET_ID) throw new Error("VITE_SHEET_ID não configurado nas variáveis de ambiente do Vercel");
+// Converte URL do Google Sheets para link de exportação CSV
+function toCSVExport(url) {
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!m) return url;
+  if (url.includes("export") || url.includes("/pub?")) return url;
+  const gid = url.match(/gid=(\d+)/)?.[1] || "0";
+  return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
+}
 
-  // 1. Busca metadados para pegar o nome da primeira aba
-  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`;
-  const metaRes = await fetch(metaUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+const RAW_URL = import.meta.env.VITE_SHEET_URL || "";
 
-  if (metaRes.status === 401) throw new Error("401 - Sessão expirada. Faça login novamente.");
-  if (metaRes.status === 403) throw new Error("403 - Você não tem acesso a esta planilha. Solicite permissão ao administrador.");
-  if (metaRes.status === 404) throw new Error("404 - Planilha não encontrada. Verifique o VITE_SHEET_ID.");
-  if (!metaRes.ok) throw new Error(`Erro ${metaRes.status} ao acessar a planilha`);
+export function loadSheet(onProgress) {
+  return new Promise((resolve, reject) => {
+    const url = toCSVExport(RAW_URL);
+    if (!url) return reject(new Error("VITE_SHEET_URL não configurado"));
 
-  const meta = await metaRes.json();
-  const sheetName = meta.sheets?.[0]?.properties?.title;
-  if (!sheetName) throw new Error("Planilha vazia ou sem abas");
-
-  // 2. Busca todos os valores da primeira aba
-  const dataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(sheetName)}`;
-  const dataRes = await fetch(dataUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!dataRes.ok) throw new Error(`Erro ${dataRes.status} ao ler dados da planilha`);
-
-  const json = await dataRes.json();
-  const [headers, ...rows] = json.values || [];
-
-  if (!headers?.length) throw new Error("Planilha sem cabeçalhos na primeira linha");
-
-  // Converte para o mesmo formato do PapaParse (array de objetos)
-  const parsed = rows
-    .filter(row => row.some(cell => cell?.toString().trim()))
-    .map(row => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = row[i] ?? ""; });
-      return obj;
+    const rows = [];
+    Papa.parse(url, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      chunk: (results) => {
+        rows.push(...results.data);
+        onProgress?.(Math.min(80, rows.length / 100));
+      },
+      complete: () => resolve({ rows, fileName: "Google Sheets" }),
+      error: (err) => reject(new Error("Não foi possível carregar a planilha. Verifique se está compartilhada como 'qualquer pessoa com o link pode ver'.")),
     });
-
-  return { rows: parsed, fileName: sheetName };
+  });
 }

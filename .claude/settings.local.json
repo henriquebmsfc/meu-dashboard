@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add src/RFM.jsx)",
+      "Bash(git commit:*)",
+      "Bash(git push origin main)",
+      "Bash(npm uninstall @react-oauth/google)",
+      "Bash(npm install @clerk/clerk-react)",
+      "Bash(npm install @clerk/react)",
+      "Bash(node -e \"const c = require\\(''./node_modules/@clerk/react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>k.includes\\(''Sign''\\)||k.includes\\(''User''\\)||k.includes\\(''Clerk''\\)\\).join\\(''\\\\n''\\)\\)\")",
+      "Bash(node -e \"const c = require\\(''./node_modules/@clerk/react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>k.includes\\(''Signed''\\)||k.includes\\(''useUser''\\)\\).join\\(''\\\\n''\\)\\)\")",
+      "Bash(node -e \"const c = require\\(''./node_modules/@clerk/clerk-react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>k.includes\\(''Signed''\\)||k.includes\\(''Sign''\\)||k.includes\\(''User''\\)||k.includes\\(''Clerk''\\)\\).join\\(''\\\\n''\\)\\)\")",
+      "Bash(npm run build)"
+    ]
+  }
+}
