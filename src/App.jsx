@@ -1,12 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   ClerkProvider,
-  SignedIn,
-  SignedOut,
   SignIn,
   UserButton,
+  useAuth,
   useUser,
-} from "@clerk/clerk-react";
+} from "@clerk/react";
 import Dashboard from "./Dashboard";
 import RFM from "./RFM";
 import { loadSheet } from "./sheetsLoader";
@@ -187,12 +186,22 @@ export default function App() {
 
   return (
     <ClerkProvider publishableKey={CLERK_KEY}>
-      <SignedOut>
-        <LoginScreen/>
-      </SignedOut>
-      <SignedIn>
-        <AppContent/>
-      </SignedIn>
+      <AuthGate/>
     </ClerkProvider>
   );
+}
+
+// Dentro do provider para ter acesso ao useAuth
+function AuthGate() {
+  const { isSignedIn, isLoaded } = useAuth();
+
+  if (!isLoaded) return (
+    <div style={{ minHeight:"100vh", background:"#faf9f7", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+      <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#bbb", letterSpacing:"0.15em" }}>carregando...</div>
+    </div>
+  );
+
+  if (!isSignedIn) return <LoginScreen/>;
+  return <AppContent/>;
 }

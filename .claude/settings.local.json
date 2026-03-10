@@ -10,7 +10,11 @@
       "Bash(node -e \"const c = require\\(''./node_modules/@clerk/react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>k.includes\\(''Sign''\\)||k.includes\\(''User''\\)||k.includes\\(''Clerk''\\)\\).join\\(''\\\\n''\\)\\)\")",
       "Bash(node -e \"const c = require\\(''./node_modules/@clerk/react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>k.includes\\(''Signed''\\)||k.includes\\(''useUser''\\)\\).join\\(''\\\\n''\\)\\)\")",
       "Bash(node -e \"const c = require\\(''./node_modules/@clerk/clerk-react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>k.includes\\(''Signed''\\)||k.includes\\(''Sign''\\)||k.includes\\(''User''\\)||k.includes\\(''Clerk''\\)\\).join\\(''\\\\n''\\)\\)\")",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(npm install @clerk/react@latest)",
+      "Bash(node -e \"const c = require\\(''./node_modules/@clerk/react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).filter\\(k=>[''ClerkProvider'',''SignedIn'',''SignedOut'',''SignIn'',''UserButton'',''useUser''].includes\\(k\\)\\).join\\(''\\\\n''\\)\\)\")",
+      "Bash(node -e \"const c = require\\(''./node_modules/@clerk/react/dist/index.js''\\); console.log\\(Object.keys\\(c\\).join\\(''\\\\n''\\)\\)\")",
+      "Bash(npm uninstall @clerk/clerk-react)"
     ]
   }
 }
