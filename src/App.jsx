@@ -8,7 +8,7 @@ import {
 } from "@clerk/react";
 import Dashboard from "./Dashboard";
 import RFM from "./RFM";
-import { loadSheet, getCacheAge, clearCache } from "./sheetsLoader";
+import { loadSheet, clearCache } from "./sheetsLoader";
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 
@@ -84,10 +84,10 @@ function AppContent() {
     setError("");
     setProgress(10);
     try {
-      const { rows, fileName: fn, fromCache: cached } = await loadSheet((p) => setProgress(p), forceRefresh);
+      const { rows, fileName: fn, fromCache: cached, cacheAge: age } = await loadSheet((p) => setProgress(p), forceRefresh);
       setFileName(fn);
       setFromCache(cached);
-      setCacheAge(cached ? (getCacheAge() || "") : "");
+      setCacheAge(age || "");
       setData(rows);
       setLoading(false);
     } catch (err) {
