@@ -64,6 +64,75 @@ function toExportRow(c) {
     "rfm_total_gasto": c.total.toFixed(2).replace(".",","),
   };
 }
+const REACTIVATION_RATES = { "Em Risco": 0.45, "Adormecidos": 0.22, "Perdidos": 0.07 };
+const INACTIVE_SEGS = ["Em Risco", "Adormecidos", "Perdidos"];
+
+const STRATEGIES = {
+  "Em Risco": {
+    urgency: "Alta", urgencyColor: "#991b1b", urgencyBg: "#fee2e2",
+    title: "Campanha de Reativação",
+    objective: "Recuperar clientes antes que se tornem adormecidos. Janela de oportunidade: 180–365 dias.",
+    channels: ["📧 E-mail personalizado", "💬 WhatsApp (clientes VIP)", "📱 SMS"],
+    offer: "Desconto de 10–15% ou frete grátis na próxima compra",
+    timing: "Enviar em até 7 dias — urgência moderada",
+    message: `Olá [NOME] 👋
+
+Sentimos a sua falta! Faz um tempo desde sua última visita e gostaríamos de te trazer de volta.
+
+Preparamos uma oferta especial só para você:
+👉 [OFERTA] — válida até [DATA]
+
+Use o código: VOLTEI15
+
+Clique aqui para aproveitar: [LINK]
+
+Qualquer dúvida, é só responder esta mensagem.
+Equipe [EMPRESA]`,
+    kpis: ["Abertura e-mail: 25–35%", "Cliques: 8–12%", "Conversão: 3–8%", "ROI médio: 8–15x"],
+  },
+  "Adormecidos": {
+    urgency: "Média", urgencyColor: "#92400e", urgencyBg: "#fde68a",
+    title: "Campanha Win-Back",
+    objective: "Reativar clientes que não compram há 1–2 anos. Custo de reativação menor que aquisição.",
+    channels: ["📧 Série de 3 e-mails (7/14/21 dias)", "🎯 Retargeting Meta/Google Ads"],
+    offer: "Desconto de 20–25% ou brinde exclusivo na compra",
+    timing: "Série de 3 e-mails ao longo de 3 semanas",
+    message: `[NOME], tudo bem? 😊
+
+Percebemos que faz um tempo desde sua última compra e queríamos entrar em contato.
+
+Preparamos algo especial para te reconquistar:
+🎁 [OFERTA] — exclusivo para clientes especiais como você
+
+Código: WINBACK20
+Válido por 15 dias: [LINK]
+
+Sentiremos sua falta caso não nos veja por aqui!
+Equipe [EMPRESA]`,
+    kpis: ["Abertura e-mail: 15–25%", "Cliques: 4–8%", "Conversão: 1–4%", "ROI médio: 4–8x"],
+  },
+  "Perdidos": {
+    urgency: "Baixa", urgencyColor: "#4b0082", urgencyBg: "#ede9fe",
+    title: "Last Chance + Supressão",
+    objective: "Última tentativa de reativação. Se sem resposta, remover de campanhas pagas para reduzir CPL.",
+    channels: ["📧 1 único e-mail (low cost)", "🚫 Supressão em mídia paga"],
+    offer: "Maior desconto possível (30%+) ou nova proposta de valor",
+    timing: "1 disparo único. Sem resposta em 30 dias → mover para lista de supressão",
+    message: `[NOME], uma última mensagem...
+
+Sabemos que faz muito tempo. Antes de encerrar nosso contato, queremos fazer uma oferta que nunca fizemos antes:
+
+💥 [OFERTA] — nosso maior desconto de todos os tempos
+
+Válido por apenas 7 dias: [LINK]
+Código: VOLTAFINAL
+
+Se não for o momento certo, tudo bem — guardamos boas memórias da nossa jornada juntos. 💙
+Equipe [EMPRESA]`,
+    kpis: ["Abertura e-mail: 8–15%", "Cliques: 2–5%", "Conversão: 0.5–2%", "ROI médio: 2–4x"],
+  },
+};
+
 function classify(r, f, m, days) {
   // Segmentação baseada em tempo absoluto (prioridade máxima)
   if (days > 730) return "Perdidos";     // +2 anos sem comprar
@@ -81,6 +150,8 @@ export default function RFM({ norm, valid, fileName, onReset }) {
   const [activeSegFilter, setActiveSegFilter] = useState(null);
   const [sortCol, setSortCol] = useState("rfm");
   const [selectedClient, setSelectedClient] = useState(null);
+  const [activeTab, setActiveTab] = useState("analise");
+  const [copiedMsg, setCopiedMsg] = useState(null);
 
   const rfm = useMemo(() => {
     if (!valid.length) return null;
@@ -182,6 +253,28 @@ export default function RFM({ norm, valid, fileName, onReset }) {
     return { email, phone, city, state, gender, personType, avgDays, first:dates[0]||null, last:dates[dates.length-1]||null };
   }, [clientOrders]);
 
+  const recovery = useMemo(() => {
+    if (!rfm) return null;
+    const inactives = rfm.scored.filter(c => INACTIVE_SEGS.includes(c.segment));
+    const withPotential = inactives.map(c => {
+      const avgTicket = c.orders > 0 ? c.total / c.orders : 0;
+      const rate = REACTIVATION_RATES[c.segment] || 0;
+      return { ...c, avgTicket, recoveryRate: rate, recoveryPotential: avgTicket * rate };
+    }).sort((a, b) => b.recoveryPotential - a.recoveryPotential);
+
+    const bySegment = INACTIVE_SEGS.map(seg => {
+      const clients = withPotential.filter(c => c.segment === seg);
+      const avgTicket = clients.length ? clients.reduce((s, c) => s + c.avgTicket, 0) / clients.length : 0;
+      const totalPotential = clients.reduce((s, c) => s + c.recoveryPotential, 0);
+      return { segment: seg, count: clients.length, avgTicket, totalPotential, rate: REACTIVATION_RATES[seg] };
+    });
+
+    const totalPotential = bySegment.reduce((s, b) => s + b.totalPotential, 0);
+    const actionable = bySegment.slice(0, 2).reduce((s, b) => s + b.count, 0);
+    const totalInactiveRevenue = inactives.reduce((s, c) => s + c.total, 0);
+    return { withPotential, bySegment, totalPotential, actionable, totalInactiveRevenue, totalInactive: inactives.length };
+  }, [rfm]);
+
   const ScoreBox = ({ v }) => (
     <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:28, height:28, borderRadius:6, fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, background:`rgba(26,26,46,${v*0.18})`, color: v>=4?"#fff":"#444" }}>{v}</span>
   );
@@ -192,9 +285,12 @@ export default function RFM({ norm, valid, fileName, onReset }) {
     <div style={{ minHeight:"100vh", background:"#faf9f7", fontFamily:"'Inter',sans-serif" }}>
       <div style={{ background:"#1a1a2e", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMobile?"0 16px":"0 36px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-          <span style={{ fontFamily:"'Outfit',sans-serif", fontSize:18, color:"#fff", fontWeight:600 }}>Análise RFM</span>
-          <div style={{ width:1, height:18, background:"#ffffff20" }}/>
-          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#ffffff50" }}>{fileName}</span>
+          <span style={{ fontFamily:"'Outfit',sans-serif", fontSize:isMobile?15:18, color:"#fff", fontWeight:600 }}>RFM</span>
+          <div style={{ display:"flex", gap:2 }}>
+            {[{id:"analise",label:"Análise"},{id:"recuperacao",label:isMobile?"Recup.":"Recuperação"}].map(t=>(
+              <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ background:activeTab===t.id?"#ffffff18":"transparent", border:"none", color:activeTab===t.id?"#fff":"#ffffff55", padding:"7px 14px", borderRadius:8, cursor:"pointer", fontFamily:"'Inter',sans-serif", fontSize:13, fontWeight:activeTab===t.id?500:400 }}>{t.label}</button>
+            ))}
+          </div>
         </div>
         <div style={{ display:"flex", gap:20, alignItems:"center" }}>
           <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#ffffff60" }}>
@@ -206,6 +302,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
         </div>
       </div>
       <div style={{ padding:isMobile?"16px 12px 100px":isTablet?"24px 20px 100px":"36px 36px 100px", maxWidth:1300, margin:"0 auto" }}>
+        {activeTab === "analise" && <>
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":isTablet?"repeat(2,1fr)":"repeat(3,1fr)", gap:14, marginBottom:28 }}>
           {rfm.segments.map(seg => {
             const cfg = SEG[seg.name]||{color:"#374151",bg:"#f3f4f6",icon:"●"};
@@ -400,6 +497,250 @@ export default function RFM({ norm, valid, fileName, onReset }) {
             </div>
           )}
         </div>
+        </>}
+
+        {activeTab === "recuperacao" && recovery && <>
+          {/* Summary KPIs */}
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:14, marginBottom:24 }}>
+            {[
+              { label:"Potencial de Recuperação", value:fmt(recovery.totalPotential), sub:`estimativa conservadora — taxa média ponderada`, accent:"#2d6a4f" },
+              { label:"Clientes Acionáveis", value:fmtN(recovery.actionable), sub:`Em Risco + Adormecidos (excl. Perdidos)`, accent:"#e76f51" },
+              { label:"Receita Histórica Inativa", value:fmt(recovery.totalInactiveRevenue), sub:`${fmtN(recovery.totalInactive)} clientes sem comprar`, accent:"#457b9d" },
+            ].map(k=>(
+              <div key={k.label} style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:14, padding:"22px 20px", position:"relative", overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}>
+                <div style={{ position:"absolute", top:0, left:0, width:4, height:"100%", background:k.accent, borderRadius:"14px 0 0 14px" }}/>
+                <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.12em", color:"#aaa", textTransform:"uppercase", marginBottom:6 }}>{k.label}</div>
+                <div style={{ fontSize:26, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e", lineHeight:1 }}>{k.value}</div>
+                <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>{k.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* By Segment */}
+          <div style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:14, overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.04)", marginBottom:24 }}>
+            <div style={{ padding:"20px 24px", borderBottom:"1px solid #f0ede8" }}>
+              <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:17, fontWeight:600, color:"#1a1a2e" }}>Potencial por Segmento</div>
+              <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginTop:3 }}>Taxa de reativação estimada baseada em benchmarks de e-commerce B2C</div>
+            </div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead>
+                  <tr style={{ background:"#faf9f7", borderBottom:"1px solid #e8e4de" }}>
+                    {["Segmento","Clientes","Ticket Médio","Taxa Reativ.","Potencial Estimado",""].map(h=>(
+                      <th key={h} style={{ padding:"11px 18px", textAlign:"left", fontSize:10, fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.1em", color:"#aaa", textTransform:"uppercase", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recovery.bySegment.map(row => {
+                    const cfg = SEG[row.segment] || { color:"#374151", bg:"#f3f4f6", icon:"●" };
+                    const pct = recovery.totalPotential ? (row.totalPotential / recovery.totalPotential * 100).toFixed(0) : 0;
+                    return (
+                      <tr key={row.segment} style={{ borderBottom:"1px solid #f5f2ee" }}>
+                        <td style={{ padding:"14px 18px" }}>
+                          <span style={{ background:cfg.bg, color:cfg.color, borderRadius:20, padding:"3px 12px", fontSize:12, fontFamily:"'JetBrains Mono',monospace", fontWeight:600, whiteSpace:"nowrap" }}>
+                            {cfg.icon} {row.segment}
+                          </span>
+                        </td>
+                        <td style={{ padding:"14px 18px", fontFamily:"'JetBrains Mono',monospace", fontSize:14, fontWeight:600, color:"#1a1a2e" }}>{fmtN(row.count)}</td>
+                        <td style={{ padding:"14px 18px", fontFamily:"'JetBrains Mono',monospace", fontSize:13, color:"#555" }}>{fmt(row.avgTicket)}</td>
+                        <td style={{ padding:"14px 18px" }}>
+                          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, color:"#2d6a4f" }}>{(row.rate * 100).toFixed(0)}%</span>
+                        </td>
+                        <td style={{ padding:"14px 18px" }}>
+                          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:14, fontWeight:700, color:"#1a1a2e" }}>{fmt(row.totalPotential)}</div>
+                          <div style={{ height:4, background:"#f0ede8", borderRadius:2, marginTop:4, width:120 }}>
+                            <div style={{ width:pct+"%", height:"100%", background:cfg.color, borderRadius:2 }}/>
+                          </div>
+                        </td>
+                        <td style={{ padding:"14px 18px" }}>
+                          <button onClick={() => {
+                            const clients = recovery.withPotential.filter(c => c.segment === row.segment);
+                            const rows = clients.map(c => ({
+                              Nome: c.name, ID: c.id, Segmento: c.segment,
+                              "Dias Inativo": c.recency < 9999 ? c.recency : "",
+                              "Última Compra": c.lastOrder ? c.lastOrder.toLocaleDateString("pt-BR") : "",
+                              "Total Histórico": c.total.toFixed(2).replace(".",","),
+                              "Ticket Médio": c.avgTicket.toFixed(2).replace(".",","),
+                              "Potencial Recuperação": c.recoveryPotential.toFixed(2).replace(".",","),
+                              Email: c.raw ? (Object.entries(c.raw).find(([k])=>k.includes("email"))?.[1] || "") : "",
+                              Telefone: c.raw ? (Object.entries(c.raw).find(([k])=>k.includes("telefone"))?.[1] || "") : "",
+                            }));
+                            exportCSV(rows, `recuperacao-${row.segment.toLowerCase().replace(/\s+/g,"-")}-${new Date().toISOString().slice(0,10)}.csv`);
+                          }} style={{ padding:"6px 14px", background:"#1a1a2e", border:"none", borderRadius:8, cursor:"pointer", fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#fff" }}>
+                            ↓ Exportar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Top Recovery Targets */}
+          <div style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:14, overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.04)", marginBottom:24 }}>
+            <div style={{ padding:"20px 24px", borderBottom:"1px solid #f0ede8", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:17, fontWeight:600, color:"#1a1a2e" }}>Top Clientes por Potencial de Recuperação</div>
+                <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginTop:3 }}>Ranqueados por ticket médio × taxa de reativação do segmento</div>
+              </div>
+              <button onClick={() => {
+                exportCSV(recovery.withPotential.slice(0,200).map(c => ({
+                  Nome: c.name, ID: c.id, Segmento: c.segment,
+                  "Dias Inativo": c.recency < 9999 ? c.recency : "",
+                  "Última Compra": c.lastOrder ? c.lastOrder.toLocaleDateString("pt-BR") : "",
+                  "Total Histórico": c.total.toFixed(2).replace(".",","),
+                  "Ticket Médio": c.avgTicket.toFixed(2).replace(".",","),
+                  "Potencial Recuperação": c.recoveryPotential.toFixed(2).replace(".",","),
+                  Email: c.raw ? (Object.entries(c.raw).find(([k])=>k.includes("email"))?.[1] || "") : "",
+                  Telefone: c.raw ? (Object.entries(c.raw).find(([k])=>k.includes("telefone"))?.[1] || "") : "",
+                })), `recuperacao-todos-${new Date().toISOString().slice(0,10)}.csv`);
+              }} style={{ padding:"8px 18px", background:"#2d6a4f", border:"none", borderRadius:10, cursor:"pointer", fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"#fff", fontWeight:500 }}>
+                ↓ Exportar todos
+              </button>
+            </div>
+            <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                <thead>
+                  <tr style={{ background:"#faf9f7", borderBottom:"1px solid #e8e4de" }}>
+                    {["#","Cliente","Segmento","Inativo há","Ticket Médio","Potencial"].map(h=>(
+                      <th key={h} style={{ padding:"11px 16px", textAlign:"left", fontSize:10, fontFamily:"'JetBrains Mono',monospace", letterSpacing:"0.1em", color:"#aaa", textTransform:"uppercase", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recovery.withPotential.slice(0, 50).map((c, i) => {
+                    const cfg = SEG[c.segment] || { color:"#374151", bg:"#f3f4f6", icon:"●" };
+                    return (
+                      <tr key={c.id+i} style={{ borderBottom:"1px solid #f5f2ee", cursor:"pointer" }} onClick={()=>setSelectedClient(c)} onMouseEnter={e=>e.currentTarget.style.background="#faf9f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{ padding:"11px 16px", fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#ccc" }}>#{i+1}</td>
+                        <td style={{ padding:"11px 16px" }}>
+                          <div style={{ fontWeight:500, color:"#1a1a2e", fontSize:14 }}>{c.name}</div>
+                          <div style={{ fontSize:10, color:"#ccc", fontFamily:"'JetBrains Mono',monospace" }}>{c.id}</div>
+                        </td>
+                        <td style={{ padding:"11px 16px" }}>
+                          <span style={{ background:cfg.bg, color:cfg.color, borderRadius:20, padding:"3px 10px", fontSize:11, fontFamily:"'JetBrains Mono',monospace", fontWeight:600, whiteSpace:"nowrap" }}>
+                            {cfg.icon} {c.segment}
+                          </span>
+                        </td>
+                        <td style={{ padding:"11px 16px" }}>
+                          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:13, color: c.recency > 365 ? "#991b1b" : "#e76f51" }}>{c.recency < 9999 ? c.recency+"d" : "—"}</div>
+                          <div style={{ fontSize:10, color:"#bbb", fontFamily:"'JetBrains Mono',monospace" }}>{c.lastOrder ? c.lastOrder.toLocaleDateString("pt-BR") : "—"}</div>
+                        </td>
+                        <td style={{ padding:"11px 16px", fontFamily:"'JetBrains Mono',monospace", fontSize:13, color:"#555" }}>{fmt(c.avgTicket)}</td>
+                        <td style={{ padding:"11px 16px" }}>
+                          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:14, fontWeight:700, color:"#2d6a4f" }}>{fmt(c.recoveryPotential)}</div>
+                          <div style={{ fontSize:10, color:"#bbb", fontFamily:"'JetBrains Mono',monospace" }}>{(c.recoveryRate*100).toFixed(0)}% reativ.</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {recovery.withPotential.length > 50 && (
+              <div style={{ padding:"12px", textAlign:"center", fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#bbb", borderTop:"1px solid #f0ede8" }}>
+                Mostrando 50 de {fmtN(recovery.withPotential.length)} — exporte para ver todos
+              </div>
+            )}
+          </div>
+
+          {/* Strategy Cards */}
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:17, fontWeight:600, color:"#1a1a2e", marginBottom:4 }}>Estratégias de Acionamento</div>
+            <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginBottom:20 }}>Playbooks prontos para cada segmento — copie o template e adapte para sua marca</div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":isTablet?"1fr":"repeat(3,1fr)", gap:18, marginBottom:24 }}>
+            {INACTIVE_SEGS.map(seg => {
+              const strat = STRATEGIES[seg];
+              const cfg = SEG[seg];
+              const segData = recovery.bySegment.find(b => b.segment === seg);
+              return (
+                <div key={seg} style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:14, padding:24, boxShadow:"0 1px 3px rgba(0,0,0,0.04)", display:"flex", flexDirection:"column", gap:14 }}>
+                  {/* Header */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                    <div>
+                      <div style={{ fontSize:22, marginBottom:6 }}>{cfg.icon}</div>
+                      <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:15, fontWeight:700, color:"#1a1a2e" }}>{strat.title}</div>
+                      <div style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:cfg.color, marginTop:2 }}>{seg} · {fmtN(segData?.count || 0)} clientes</div>
+                    </div>
+                    <span style={{ background:strat.urgencyBg, color:strat.urgencyColor, borderRadius:20, padding:"3px 10px", fontSize:10, fontFamily:"'JetBrains Mono',monospace", fontWeight:600, whiteSpace:"nowrap" }}>
+                      {strat.urgency}
+                    </span>
+                  </div>
+
+                  {/* Objective */}
+                  <div style={{ fontSize:12, color:"#555", lineHeight:1.5, padding:"10px 12px", background:"#faf9f7", borderRadius:8, border:"1px solid #f0ede8" }}>
+                    🎯 {strat.objective}
+                  </div>
+
+                  {/* Channels + Offer */}
+                  <div>
+                    <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>Canais</div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                      {strat.channels.map(ch => (
+                        <span key={ch} style={{ fontSize:12, color:"#555" }}>{ch}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ padding:"8px 12px", background: cfg.bg, borderRadius:8, fontSize:12, color:cfg.color, fontWeight:500 }}>
+                    💡 {strat.offer}
+                  </div>
+
+                  <div style={{ fontSize:11, color:"#888", fontFamily:"'JetBrains Mono',monospace" }}>⏰ {strat.timing}</div>
+
+                  {/* KPIs */}
+                  <div>
+                    <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>KPIs Esperados</div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                      {strat.kpis.map(kpi => (
+                        <span key={kpi} style={{ fontSize:11, color:"#555", fontFamily:"'JetBrains Mono',monospace" }}>· {kpi}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Message Template */}
+                  <div>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                      <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em" }}>Template de Mensagem</div>
+                      <button onClick={() => {
+                        navigator.clipboard.writeText(strat.message).then(() => {
+                          setCopiedMsg(seg);
+                          setTimeout(() => setCopiedMsg(null), 2000);
+                        });
+                      }} style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", background: copiedMsg===seg ? "#d1fae5" : "#f0ede8", color: copiedMsg===seg ? "#065f46" : "#666", border:"none", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>
+                        {copiedMsg===seg ? "✓ Copiado!" : "Copiar"}
+                      </button>
+                    </div>
+                    <pre style={{ fontSize:11, color:"#555", lineHeight:1.6, background:"#faf9f7", padding:"12px 14px", borderRadius:8, border:"1px solid #f0ede8", whiteSpace:"pre-wrap", wordBreak:"break-word", margin:0, fontFamily:"'Inter',sans-serif", maxHeight:200, overflowY:"auto" }}>
+                      {strat.message}
+                    </pre>
+                  </div>
+
+                  {/* Export CTA */}
+                  <button onClick={() => {
+                    const clients = recovery.withPotential.filter(c => c.segment === seg);
+                    const rows = clients.map(c => ({
+                      Nome: c.name, ID: c.id,
+                      "Dias Inativo": c.recency < 9999 ? c.recency : "",
+                      "Última Compra": c.lastOrder ? c.lastOrder.toLocaleDateString("pt-BR") : "",
+                      "Ticket Médio": c.avgTicket.toFixed(2).replace(".",","),
+                      "Potencial": c.recoveryPotential.toFixed(2).replace(".",","),
+                      Email: c.raw ? (Object.entries(c.raw).find(([k])=>k.includes("email"))?.[1] || "") : "",
+                      Telefone: c.raw ? (Object.entries(c.raw).find(([k])=>k.includes("telefone"))?.[1] || "") : "",
+                    }));
+                    exportCSV(rows, `campanha-${seg.toLowerCase().replace(/\s+/g,"-")}-${new Date().toISOString().slice(0,10)}.csv`);
+                  }} style={{ padding:"10px 0", background:"#1a1a2e", border:"none", borderRadius:10, cursor:"pointer", fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"#fff", fontWeight:500, textAlign:"center" }}>
+                    ↓ Exportar lista para campanha
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>}
       </div>
 
       {/* ── Painel de detalhe do cliente ── */}
