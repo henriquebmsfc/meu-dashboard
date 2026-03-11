@@ -9,6 +9,7 @@ import {
 import Dashboard from "./Dashboard";
 import RFM from "./RFM";
 import { loadSheet, clearCache } from "./sheetsLoader";
+import { useBreakpoint } from "./useBreakpoint";
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 
@@ -25,8 +26,9 @@ function isValid(row) {
 
 // ─── Tela de login ────────────────────────────────────────────────────────────
 function LoginScreen() {
+  const { isMobile } = useBreakpoint();
   return (
-    <div style={{ minHeight: "100vh", background: "#faf9f7", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: 40 }}>
+    <div style={{ minHeight: "100vh", background: "#faf9f7", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: isMobile ? "24px 16px" : 40 }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
       <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.2em", color: "#aaa", textTransform: "uppercase", marginBottom: 14 }}>ecommerce analytics</div>
       <h1 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 42, fontWeight: 700, color: "#1a1a2e", margin: 0, lineHeight: 1.1, textAlign: "center", marginBottom: 10 }}>Dashboard de Clientes</h1>
@@ -45,6 +47,7 @@ function LoginScreen() {
 
 // ─── App com dados (só renderiza se logado) ───────────────────────────────────
 function AppContent() {
+  const { isMobile, isTablet } = useBreakpoint();
   const { user } = useUser();
   const [data,       setData]       = useState([]);
   const [norm,       setNorm]       = useState([]);
@@ -116,7 +119,7 @@ function AppContent() {
       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#bbb", marginBottom: 32 }}>
         {loading ? "carregando linhas..." : `normalizando ${new Intl.NumberFormat("pt-BR").format(data.length)} registros...`}
       </div>
-      <div style={{ width: 320, height: 6, background: "#e8e4de", borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ width: isMobile ? "90vw" : 320, height: 6, background: "#e8e4de", borderRadius: 10, overflow: "hidden" }}>
         <div style={{ width: progress + "%", height: "100%", background: "#1a1a2e", borderRadius: 10, transition: "width 0.3s ease" }}/>
       </div>
       <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: "#bbb", marginTop: 12 }}>{progress}%</div>
@@ -142,7 +145,21 @@ function AppContent() {
   return (
     <>
       {/* Barra flutuante de navegação */}
-      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, display: "flex", gap: 6, background: "#fff", padding: 6, borderRadius: 14, boxShadow: "0 4px 20px rgba(0,0,0,0.14)", alignItems: "center" }}>
+      <div style={{
+        position: "fixed",
+        bottom: isMobile ? 0 : 24,
+        right: isMobile ? 0 : 24,
+        left: isMobile ? 0 : "auto",
+        zIndex: 9999,
+        display: "flex",
+        gap: 6,
+        background: "#fff",
+        padding: isMobile ? "8px 16px 12px" : 6,
+        borderRadius: isMobile ? "14px 14px 0 0" : 14,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.14)",
+        alignItems: "center",
+        justifyContent: isMobile ? "center" : "flex-start",
+      }}>
         <button onClick={() => setPage("dashboard")} style={{ padding: "9px 18px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontSize: 13, background: page === "dashboard" ? "#1a1a2e" : "transparent", color: page === "dashboard" ? "#fff" : "#888", fontWeight: 600, transition: "all 0.15s" }}>
           Dashboard
         </button>

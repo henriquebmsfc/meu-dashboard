@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { useBreakpoint } from "./useBreakpoint";
 
 const fmt  = v => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);
 const fmtN = v => new Intl.NumberFormat("pt-BR").format(v||0);
@@ -69,6 +70,7 @@ function InsightCard({ type, title, desc }) {
 }
 
 export default function Dashboard({ data, norm, valid, fileName, onReset }) {
+  const { isMobile, isTablet } = useBreakpoint();
   const [tab,      setTab]      = useState("overview");
   const [search,   setSearch]   = useState("");
   const [selectedClient, setSelectedClient] = useState(null);
@@ -327,9 +329,9 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
   return (
     <div style={{minHeight:"100vh",background:"#faf9f7",fontFamily:"'Inter',sans-serif"}}>
       {/* Header */}
-      <div style={{background:"#1a1a2e",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 36px",position:"sticky",top:0,zIndex:100}}>
+      <div style={{background:"#1a1a2e",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMobile?"0 16px":"0 36px",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <span style={{fontFamily:"'Outfit',sans-serif",fontSize:18,color:"#fff",fontWeight:600}}>Analytics</span>
+          <span style={{fontFamily:"'Outfit',sans-serif",fontSize:isMobile?16:18,color:"#fff",fontWeight:600}}>Analytics</span>
           <div style={{width:1,height:18,background:"#ffffff20"}}/>
           <span style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"#ffffff50"}}>{fileName}</span>
         </div>
@@ -355,10 +357,10 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
         </div>
       )}
 
-      <div style={{padding:"32px 36px 100px",maxWidth:1320,margin:"0 auto"}}>
+      <div style={{padding:isMobile?"16px 12px 100px":isTablet?"24px 20px 100px":"32px 36px 100px",maxWidth:1320,margin:"0 auto"}}>
         {/* Visão Geral */}
         {tab==="overview" && overview && <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:14,marginBottom:16}}>
             <KPI label="Faturamento Total"  value={fmt(overview.revenue)}              sub={`${fmtN(overview.orders)} pedidos válidos`} accent="#1a1a2e"/>
             <KPI label="Clientes Únicos"    value={fmtN(overview.clientList.length)}   sub="no período"        accent="#2d6a4f"/>
             <KPI label="Ticket Médio"       value={fmt(overview.avgTicket)}            sub="por pedido"        accent="#e76f51"/>
@@ -387,7 +389,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
 
         {/* Inteligência */}
         {tab==="intel" && intel && <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":isTablet?"repeat(3,1fr)":"repeat(5,1fr)",gap:12,marginBottom:20}}>
             {[
               {label:"Total Vendas",         value:fmtN(intel.totalOrders), sub:"pedidos válidos",     accent:"#1a1a2e"},
               {label:"Clientes 1 Compra",    value:fmtN(intel.single),      sub:`de ${fmtN(intel.uniqueClients)} únicos`, accent:"#e76f51"},
@@ -396,7 +398,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
               {label:"Ticket Médio Cliente", value:fmt(intel.avgClient),    sub:"lifetime",            accent:"#9b59b6"},
             ].map(k=><KPI key={k.label} {...k}/>)}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:18,marginBottom:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
               <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Recência</div>
               <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Clientes com última compra dentro do período</div>
@@ -455,7 +457,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
             <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Segmentação por Gasto Lifetime</div>
             <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Distribuição de clientes e receita por faixa</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":isTablet?"repeat(3,1fr)":"repeat(5,1fr)",gap:12}}>
               {intel.spendBuckets.map((b,i)=>{
                 const pctC=intel.uniqueClients?(b.count/intel.uniqueClients*100).toFixed(1):0;
                 const pctR=intel.totalRev?(b.revenue/intel.totalRev*100).toFixed(1):0;
@@ -477,9 +479,9 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)",marginTop:18}}>
             <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Curva ABC de Clientes</div>
             <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>Concentração de receita — clientes ordenados do maior para o menor gasto</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24}}>
               <div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
+                <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:10,marginBottom:18}}>
                   {[
                     {seg:"A",color:"#1a1a2e",data:intel.abcA,target:"≈80% receita"},
                     {seg:"B",color:"#457b9d",data:intel.abcB,target:"≈15% receita"},
@@ -548,7 +550,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           </div>
 
           {/* Horários */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:18}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:18,marginTop:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
               <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Horário dos Pedidos</div>
               <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:16}}>Distribuição por hora do dia (0–23h)</div>
@@ -597,7 +599,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           </div>
 
           {/* Geográfico + CRM */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:18}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:18,marginTop:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
               <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Estados — Top {intel.geoData.length}</div>
               <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:16}}>Por faturamento acumulado</div>
@@ -657,7 +659,7 @@ export default function Dashboard({ data, norm, valid, fileName, onReset }) {
           </div>
 
           {/* Demográfico */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginTop:18}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:18,marginTop:18}}>
             <div style={{background:"#fff",border:"1px solid #e8e4de",borderRadius:14,padding:24,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
               <div style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:600,color:"#1a1a2e",marginBottom:4}}>Gênero dos Clientes</div>
               <div style={{fontSize:11,color:"#bbb",fontFamily:"'JetBrains Mono',monospace",marginBottom:20}}>{fmtN(intel.genderTotal)} com dado informado de {fmtN(intel.uniqueClients)}</div>

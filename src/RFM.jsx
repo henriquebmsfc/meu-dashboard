@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useBreakpoint } from "./useBreakpoint";
 
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
 const fmtN = (v) => new Intl.NumberFormat("pt-BR").format(v || 0);
@@ -72,6 +73,7 @@ function classify(r, f, m, days) {
 }
 
 export default function RFM({ norm, valid, fileName, onReset }) {
+  const { isMobile, isTablet } = useBreakpoint();
   const [activeSegFilter, setActiveSegFilter] = useState(null);
   const [sortCol, setSortCol] = useState("rfm");
 
@@ -143,7 +145,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
 
   return (
     <div style={{ minHeight:"100vh", background:"#faf9f7", fontFamily:"'Inter',sans-serif" }}>
-      <div style={{ background:"#1a1a2e", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 36px" }}>
+      <div style={{ background:"#1a1a2e", height:60, display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMobile?"0 16px":"0 36px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <span style={{ fontFamily:"'Outfit',sans-serif", fontSize:18, color:"#fff", fontWeight:600 }}>Análise RFM</span>
           <div style={{ width:1, height:18, background:"#ffffff20" }}/>
@@ -158,8 +160,8 @@ export default function RFM({ norm, valid, fileName, onReset }) {
           </button>
         </div>
       </div>
-      <div style={{ padding:"36px 36px 100px", maxWidth:1300, margin:"0 auto" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:28 }}>
+      <div style={{ padding:isMobile?"16px 12px 100px":isTablet?"24px 20px 100px":"36px 36px 100px", maxWidth:1300, margin:"0 auto" }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":isTablet?"repeat(2,1fr)":"repeat(3,1fr)", gap:14, marginBottom:28 }}>
           {rfm.segments.map(seg => {
             const cfg = SEG[seg.name]||{color:"#374151",bg:"#f3f4f6",icon:"●"};
             const pct = rfm.total?(seg.count/rfm.total*100).toFixed(1):0;
@@ -197,7 +199,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
             );
           })}
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:28 }}>
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:20, marginBottom:28 }}>
           <div style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:16, padding:28, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
             <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:17, fontWeight:600, color:"#1a1a2e", marginBottom:4 }}>Mapa de Calor R × F</div>
             <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginBottom:20 }}>Recência (Y) vs Frequência (X) · número de clientes por célula</div>
@@ -306,7 +308,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
               </button>
             </div>
           </div>
-          <div style={{ overflowX:"auto" }}>
+          <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
             <table style={{ width:"100%", borderCollapse:"collapse" }}>
               <thead>
                 <tr style={{ background:"#faf9f7", borderBottom:"1px solid #e8e4de" }}>
