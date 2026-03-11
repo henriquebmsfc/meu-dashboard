@@ -46,6 +46,10 @@ function exportCSV(rows, filename) {
   const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
   URL.revokeObjectURL(url);
 }
+function findKey(r, ...parts) {
+  for (const p of parts) { const k = Object.keys(r).find(k => k.includes(p)); if (k) return k; }
+  return null;
+}
 function toExportRow(c) {
   return {
     ...c.raw,
@@ -76,6 +80,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
   const { isMobile, isTablet } = useBreakpoint();
   const [activeSegFilter, setActiveSegFilter] = useState(null);
   const [sortCol, setSortCol] = useState("rfm");
+  const [selectedClient, setSelectedClient] = useState(null);
 
   const rfm = useMemo(() => {
     if (!valid.length) return null;
@@ -136,6 +141,46 @@ export default function RFM({ norm, valid, fileName, onReset }) {
     if (sortCol==="recency") list = [...list].sort((a,b)=>a.recency-b.recency);
     return list.slice(0,200);
   }, [rfm, activeSegFilter, sortCol]);
+
+  const clientOrders = useMemo(() => {
+    if (!selectedClient || !norm.length) return [];
+    return norm.filter(r => {
+      const ck = findKey(r, "codigo", "cliente");
+      const nk = findKey(r, "nome");
+      const id = ck ? r[ck] : (nk ? r[nk] : "?");
+      return id === selectedClient.id;
+    }).sort((a, b) => {
+      const dk = findKey(a, "data");
+      const da = dk ? parseDate(a[dk]) : null;
+      const db = dk ? parseDate(b[dk]) : null;
+      if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
+      return db - da;
+    });
+  }, [selectedClient, norm]);
+
+  const clientDetail = useMemo(() => {
+    if (!clientOrders.length) return null;
+    let email=null, phone=null, city=null, state=null, gender=null, personType=null;
+    for (const r of clientOrders) {
+      const ek=findKey(r,"email"), tk=findKey(r,"telefone"), ck2=findKey(r,"cidade");
+      const ek2=findKey(r,"estado"), sk=findKey(r,"sexo"), tpk=findKey(r,"tipo");
+      if(!email&&ek&&r[ek]?.trim())email=r[ek].trim();
+      if(!phone&&tk&&r[tk]?.trim())phone=r[tk].trim();
+      if(!city&&ck2&&r[ck2]?.trim())city=r[ck2].trim();
+      if(!state&&ek2&&r[ek2]?.trim())state=r[ek2].trim();
+      if(!gender&&sk&&r[sk]?.trim())gender=r[sk].trim();
+      if(!personType&&tpk&&r[tpk]?.trim())personType=r[tpk].trim();
+    }
+    const dates = clientOrders
+      .map(r => { const dk=findKey(r,"data"); return dk?parseDate(r[dk]):null; })
+      .filter(d => d&&!isNaN(d)).sort((a,b)=>a-b);
+    let avgDays = null;
+    if (dates.length >= 2) {
+      const gaps = []; for (let i=1;i<dates.length;i++) gaps.push((dates[i]-dates[i-1])/86400000);
+      avgDays = Math.round(gaps.reduce((s,g)=>s+g,0)/gaps.length);
+    }
+    return { email, phone, city, state, gender, personType, avgDays, first:dates[0]||null, last:dates[dates.length-1]||null };
+  }, [clientOrders]);
 
   const ScoreBox = ({ v }) => (
     <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:28, height:28, borderRadius:6, fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, background:`rgba(26,26,46,${v*0.18})`, color: v>=4?"#fff":"#444" }}>{v}</span>
@@ -321,7 +366,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
                 {displayed.map((c,i)=>{
                   const cfg=SEG[c.segment]||{color:"#374151",bg:"#f3f4f6"};
                   return (
-                    <tr key={c.id+i} style={{ borderBottom:"1px solid #f5f2ee" }} onMouseEnter={e=>e.currentTarget.style.background="#faf9f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <tr key={c.id+i} style={{ borderBottom:"1px solid #f5f2ee", cursor:"pointer" }} onClick={()=>setSelectedClient(c)} onMouseEnter={e=>e.currentTarget.style.background="#faf9f7"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <td style={{ padding:"11px 16px" }}>
                         <div style={{ fontWeight:500, color:"#1a1a2e", fontSize:14 }}>{c.name}</div>
                         <div style={{ fontSize:10, color:"#ccc", fontFamily:"'JetBrains Mono',monospace" }}>{c.id}</div>
@@ -356,6 +401,127 @@ export default function RFM({ norm, valid, fileName, onReset }) {
           )}
         </div>
       </div>
+
+      {/* ── Painel de detalhe do cliente ── */}
+      {selectedClient && (
+        <>
+          <div onClick={()=>setSelectedClient(null)} style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.18)", zIndex:199 }}/>
+          <div style={{ position:"fixed", top:0, right:0, width:isMobile?"100%":460, height:"100vh", background:"#fff", boxShadow:"-4px 0 28px rgba(0,0,0,0.13)", zIndex:200, display:"flex", flexDirection:"column" }}>
+
+            {/* Header */}
+            <div style={{ padding:"24px 28px", borderBottom:"1px solid #f0ede8", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
+              <div>
+                <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:6 }}>Detalhe do Cliente</div>
+                <div style={{ fontSize:20, fontWeight:600, fontFamily:"'Outfit',sans-serif", color:"#1a1a2e", lineHeight:1.2 }}>{selectedClient.name}</div>
+                {selectedClient.id !== selectedClient.name && (
+                  <div style={{ fontSize:11, color:"#ccc", fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>{selectedClient.id}</div>
+                )}
+                <div style={{ marginTop:10 }}>
+                  <span style={{ background:SEG[selectedClient.segment]?.bg, color:SEG[selectedClient.segment]?.color, borderRadius:20, padding:"3px 12px", fontSize:12, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>
+                    {SEG[selectedClient.segment]?.icon} {selectedClient.segment}
+                  </span>
+                </div>
+              </div>
+              <button onClick={()=>setSelectedClient(null)} style={{ background:"#f5f2ee", border:"none", borderRadius:8, width:32, height:32, cursor:"pointer", fontSize:20, color:"#666", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+            </div>
+
+            {/* Scores RFM */}
+            <div style={{ padding:"16px 28px", borderBottom:"1px solid #f0ede8", flexShrink:0 }}>
+              <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>Scores RFM</div>
+              <div style={{ display:"flex", gap:8 }}>
+                {[{label:"Recência",v:selectedClient.rScore},{label:"Frequência",v:selectedClient.fScore},{label:"Monetário",v:selectedClient.mScore}].map(s=>(
+                  <div key={s.label} style={{ flex:1, textAlign:"center", background:"#faf9f7", borderRadius:10, padding:"10px 6px" }}>
+                    <div style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace", color:"#bbb", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>{s.label}</div>
+                    <ScoreBox v={s.v}/>
+                  </div>
+                ))}
+                <div style={{ flex:1, textAlign:"center", background:"#1a1a2e", borderRadius:10, padding:"10px 6px" }}>
+                  <div style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace", color:"#ffffff60", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Score</div>
+                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:20, fontWeight:700, color:"#fff" }}>{selectedClient.rScore}{selectedClient.fScore}{selectedClient.mScore}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* KPIs */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, padding:"16px 28px 0", flexShrink:0 }}>
+              {[
+                {label:"Total Gasto",     value:fmt(selectedClient.total)},
+                {label:"Pedidos",         value:fmtN(selectedClient.orders)},
+                {label:"Ticket Médio",    value:fmt(selectedClient.orders?selectedClient.total/selectedClient.orders:0)},
+                {label:"Dias s/ comprar", value:selectedClient.recency<9999?selectedClient.recency+"d":"—"},
+              ].map(k=>(
+                <div key={k.label} style={{ background:"#faf9f7", borderRadius:10, padding:"12px 14px" }}>
+                  <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{k.label}</div>
+                  <div style={{ fontSize:18, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e" }}>{k.value}</div>
+                </div>
+              ))}
+              {clientDetail?.avgDays != null && (
+                <div style={{ gridColumn:"1/-1", background:"#faf9f7", borderRadius:10, padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>Intervalo Médio</div>
+                    <div style={{ fontSize:18, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e" }}>{clientDetail.avgDays} dias entre compras</div>
+                  </div>
+                  {clientDetail.first && clientDetail.last && clientDetail.first.getTime()!==clientDetail.last.getTime() && (
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb" }}>1ª compra</div>
+                      <div style={{ fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>{clientDetail.first.toLocaleDateString("pt-BR")}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Contato */}
+            {clientDetail && (clientDetail.email||clientDetail.phone||clientDetail.city||clientDetail.gender||clientDetail.personType) && (
+              <div style={{ padding:"12px 28px", flexShrink:0 }}>
+                <div style={{ background:"#faf9f7", borderRadius:10, padding:"12px 14px", display:"flex", flexWrap:"wrap", gap:10 }}>
+                  {clientDetail.personType && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>👤 {clientDetail.personType}</span>}
+                  {clientDetail.gender && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>{clientDetail.gender.toUpperCase()==="M"?"♂ Masculino":"♀ Feminino"}</span>}
+                  {clientDetail.city && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>📍 {clientDetail.city}{clientDetail.state?`, ${clientDetail.state}`:""}</span>}
+                  {clientDetail.email && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>✉ {clientDetail.email}</span>}
+                  {clientDetail.phone && <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#555" }}>📞 {clientDetail.phone}</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Histórico label */}
+            <div style={{ padding:"8px 28px 10px", flexShrink:0 }}>
+              <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.12em" }}>
+                Histórico de Pedidos · {fmtN(clientOrders.length)} registros
+              </div>
+            </div>
+
+            {/* Histórico table */}
+            <div style={{ overflowY:"auto", flex:1, padding:"0 28px 28px" }}>
+              {clientOrders.length===0
+                ? <div style={{ fontSize:13, color:"#bbb", fontFamily:"'JetBrains Mono',monospace" }}>Nenhum pedido encontrado.</div>
+                : <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead>
+                      <tr>
+                        {["Data","Status","Valor"].map(h=>(
+                          <th key={h} style={{ padding:"8px 6px", textAlign:h==="Valor"?"right":"left", fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", fontWeight:500, borderBottom:"1px solid #f0ede8" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientOrders.map((r,i)=>{
+                        const dk=findKey(r,"data"), vk=findKey(r,"valor"), sk=findKey(r,"status");
+                        const d=dk?parseDate(r[dk]):null, v=parseValue(vk?r[vk]:0), s=sk?r[sk]:"—";
+                        return (
+                          <tr key={i} style={{ borderBottom:"1px solid #f5f2ee" }}>
+                            <td style={{ padding:"10px 6px", fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#555" }}>{d?d.toLocaleDateString("pt-BR"):"—"}</td>
+                            <td style={{ padding:"10px 6px", fontSize:12, color:"#888" }}>{s}</td>
+                            <td style={{ padding:"10px 6px", fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:600, color:"#1a1a2e", textAlign:"right" }}>{fmt(v)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+              }
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
