@@ -64,8 +64,29 @@ function toExportRow(c) {
     "rfm_total_gasto": c.total.toFixed(2).replace(".",","),
   };
 }
-const REACTIVATION_RATES = { "Em Risco": 0.45, "Adormecidos": 0.22, "Perdidos": 0.07 };
 const INACTIVE_SEGS = ["Em Risco", "Adormecidos", "Perdidos"];
+const SCENARIOS = {
+  pessimista: {
+    label: "Pessimista", icon: "📉", color: "#991b1b", bg: "#fee2e2",
+    rates: { "Em Risco": 0.25, "Adormecidos": 0.12, "Perdidos": 0.03 },
+    desc: "Sem campanhas ativas ou sem incentivo especial",
+  },
+  realista: {
+    label: "Realista", icon: "📊", color: "#92400e", bg: "#fde68a",
+    rates: { "Em Risco": 0.45, "Adormecidos": 0.22, "Perdidos": 0.07 },
+    desc: "Benchmark de e-commerce B2C — campanha padrão",
+  },
+  otimista: {
+    label: "Otimista", icon: "📈", color: "#065f46", bg: "#d1fae5",
+    rates: { "Em Risco": 0.65, "Adormecidos": 0.35, "Perdidos": 0.12 },
+    desc: "Campanha agressiva com oferta forte + multicanal",
+  },
+  calibrado: {
+    label: "Calibrado", icon: "🎯", color: "#1e3a5f", bg: "#dbeafe",
+    rates: null,
+    desc: "Baseado nos seus dados reais de campanha",
+  },
+};
 
 const STRATEGIES = {
   "Em Risco": {
@@ -152,6 +173,9 @@ export default function RFM({ norm, valid, fileName, onReset }) {
   const [selectedClient, setSelectedClient] = useState(null);
   const [activeTab, setActiveTab] = useState("analise");
   const [copiedMsg, setCopiedMsg] = useState(null);
+  const [scenario, setScenario] = useState("realista");
+  const [customRates, setCustomRates] = useState({ "Em Risco": "", "Adormecidos": "", "Perdidos": "" });
+  const [showCalibration, setShowCalibration] = useState(false);
 
   const rfm = useMemo(() => {
     if (!valid.length) return null;
@@ -253,12 +277,29 @@ export default function RFM({ norm, valid, fileName, onReset }) {
     return { email, phone, city, state, gender, personType, avgDays, first:dates[0]||null, last:dates[dates.length-1]||null };
   }, [clientOrders]);
 
+  const customRatesValid = INACTIVE_SEGS.every(seg => {
+    const v = parseFloat(String(customRates[seg]).replace(",", ".").replace("%", ""));
+    return !isNaN(v) && v > 0 && v <= 100;
+  });
+
   const recovery = useMemo(() => {
     if (!rfm) return null;
+    // Determine active rates for this scenario
+    let activeRates;
+    if (scenario === "calibrado" && customRatesValid) {
+      activeRates = {};
+      INACTIVE_SEGS.forEach(seg => {
+        const v = parseFloat(String(customRates[seg]).replace(",", ".").replace("%", ""));
+        activeRates[seg] = Math.min(v / 100, 1);
+      });
+    } else {
+      activeRates = SCENARIOS[scenario]?.rates || SCENARIOS.realista.rates;
+    }
+
     const inactives = rfm.scored.filter(c => INACTIVE_SEGS.includes(c.segment));
     const withPotential = inactives.map(c => {
       const avgTicket = c.orders > 0 ? c.total / c.orders : 0;
-      const rate = REACTIVATION_RATES[c.segment] || 0;
+      const rate = activeRates[c.segment] || 0;
       return { ...c, avgTicket, recoveryRate: rate, recoveryPotential: avgTicket * rate };
     }).sort((a, b) => b.recoveryPotential - a.recoveryPotential);
 
@@ -266,14 +307,14 @@ export default function RFM({ norm, valid, fileName, onReset }) {
       const clients = withPotential.filter(c => c.segment === seg);
       const avgTicket = clients.length ? clients.reduce((s, c) => s + c.avgTicket, 0) / clients.length : 0;
       const totalPotential = clients.reduce((s, c) => s + c.recoveryPotential, 0);
-      return { segment: seg, count: clients.length, avgTicket, totalPotential, rate: REACTIVATION_RATES[seg] };
+      return { segment: seg, count: clients.length, avgTicket, totalPotential, rate: activeRates[seg] };
     });
 
     const totalPotential = bySegment.reduce((s, b) => s + b.totalPotential, 0);
     const actionable = bySegment.slice(0, 2).reduce((s, b) => s + b.count, 0);
     const totalInactiveRevenue = inactives.reduce((s, c) => s + c.total, 0);
-    return { withPotential, bySegment, totalPotential, actionable, totalInactiveRevenue, totalInactive: inactives.length };
-  }, [rfm]);
+    return { withPotential, bySegment, totalPotential, actionable, totalInactiveRevenue, totalInactive: inactives.length, activeRates, scenarioKey: scenario };
+  }, [rfm, scenario, customRates, customRatesValid]);
 
   const ScoreBox = ({ v }) => (
     <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:28, height:28, borderRadius:6, fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, background:`rgba(26,26,46,${v*0.18})`, color: v>=4?"#fff":"#444" }}>{v}</span>
@@ -500,10 +541,126 @@ export default function RFM({ norm, valid, fileName, onReset }) {
         </>}
 
         {activeTab === "recuperacao" && recovery && <>
+
+          {/* Scenario Selector */}
+          <div style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:14, padding:"20px 24px", marginBottom:20, boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, marginBottom:16 }}>
+              <div>
+                <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:15, fontWeight:600, color:"#1a1a2e" }}>Cenário de Projeção</div>
+                <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginTop:2 }}>
+                  {SCENARIOS[scenario]?.desc || "Taxas definidas manualmente"}
+                </div>
+              </div>
+              <button onClick={() => setShowCalibration(v => !v)} style={{ background: showCalibration ? "#1a1a2e" : "transparent", border:"1px solid #d0ccc6", borderRadius:8, padding:"6px 14px", cursor:"pointer", fontSize:11, fontFamily:"'JetBrains Mono',monospace", color: showCalibration ? "#fff" : "#666", transition:"all .15s" }}>
+                🎯 Calibrar com dados reais {showCalibration ? "▲" : "▼"}
+              </button>
+            </div>
+
+            {/* Scenario toggle buttons */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom: showCalibration ? 20 : 0 }}>
+              {Object.entries(SCENARIOS).map(([key, sc]) => {
+                const isDisabled = key === "calibrado" && !customRatesValid;
+                const isActive = scenario === key;
+                return (
+                  <button key={key} disabled={isDisabled}
+                    onClick={() => { if (!isDisabled) setScenario(key); }}
+                    title={isDisabled ? "Preencha as taxas reais na seção abaixo para habilitar" : sc.desc}
+                    style={{
+                      background: isActive ? sc.bg : "#faf9f7",
+                      border: isActive ? `2px solid ${sc.color}` : "2px solid #e8e4de",
+                      borderRadius:10, padding:"10px 16px", cursor: isDisabled ? "not-allowed" : "pointer",
+                      opacity: isDisabled ? 0.45 : 1, transition:"all .15s",
+                      display:"flex", flexDirection:"column", alignItems:"flex-start", gap:3, minWidth:130,
+                    }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <span style={{ fontSize:15 }}>{sc.icon}</span>
+                      <span style={{ fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:700, color: isActive ? sc.color : "#555" }}>{sc.label}</span>
+                    </div>
+                    {sc.rates && (
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {INACTIVE_SEGS.map(seg => (
+                          <span key={seg} style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace", color: isActive ? sc.color : "#aaa", background: isActive ? `${sc.color}18` : "#f0ede8", borderRadius:4, padding:"1px 5px", whiteSpace:"nowrap" }}>
+                            {seg.split(" ")[0]} {(sc.rates[seg]*100).toFixed(0)}%
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {key === "calibrado" && !sc.rates && customRatesValid && (
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {INACTIVE_SEGS.map(seg => {
+                          const v = parseFloat(String(customRates[seg]).replace(",",".").replace("%",""));
+                          return (
+                            <span key={seg} style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace", color: isActive ? sc.color : "#aaa", background: isActive ? `${sc.color}18` : "#f0ede8", borderRadius:4, padding:"1px 5px", whiteSpace:"nowrap" }}>
+                              {seg.split(" ")[0]} {v.toFixed(0)}%
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Calibration panel */}
+            {showCalibration && (
+              <div style={{ background:"#faf9f7", border:"1px solid #e8e4de", borderRadius:12, padding:"18px 20px" }}>
+                <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:13, fontWeight:600, color:"#1a1a2e", marginBottom:4 }}>Taxas Reais de Reativação</div>
+                <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginBottom:16 }}>
+                  Preencha com os resultados reais das suas campanhas (ex: de 100 clientes contactados, quantos compraram). Ao preencher os 3 campos, o cenário "Calibrado" será desbloqueado.
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:14 }}>
+                  {INACTIVE_SEGS.map(seg => {
+                    const cfg = SEG[seg];
+                    const rawVal = customRates[seg];
+                    const numVal = parseFloat(String(rawVal).replace(",",".").replace("%",""));
+                    const isValid = !isNaN(numVal) && numVal > 0 && numVal <= 100;
+                    const benchRate = (SCENARIOS.realista.rates[seg] * 100).toFixed(0);
+                    return (
+                      <div key={seg}>
+                        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                          <span style={{ background:cfg.bg, color:cfg.color, borderRadius:20, padding:"2px 10px", fontSize:11, fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>{cfg.icon} {seg}</span>
+                        </div>
+                        <div style={{ position:"relative" }}>
+                          <input
+                            type="text" inputMode="decimal"
+                            value={rawVal}
+                            onChange={e => setCustomRates(prev => ({ ...prev, [seg]: e.target.value }))}
+                            placeholder={`Benchmark: ${benchRate}%`}
+                            style={{
+                              width:"100%", boxSizing:"border-box",
+                              border: `1.5px solid ${isValid ? "#2d6a4f" : rawVal ? "#e76f51" : "#d0ccc6"}`,
+                              borderRadius:8, padding:"9px 36px 9px 12px",
+                              fontFamily:"'JetBrains Mono',monospace", fontSize:13, color:"#1a1a2e",
+                              background:"#fff", outline:"none", transition:"border .15s",
+                            }}
+                          />
+                          <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"#aaa", pointerEvents:"none" }}>%</span>
+                        </div>
+                        <div style={{ fontSize:10, color:"#bbb", fontFamily:"'JetBrains Mono',monospace", marginTop:4 }}>
+                          Referência: {benchRate}% (benchmark B2C)
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {customRatesValid && (
+                  <div style={{ marginTop:14, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:11, color:"#2d6a4f", fontFamily:"'JetBrains Mono',monospace" }}>✓ Taxas válidas — cenário "Calibrado" desbloqueado</span>
+                    <button onClick={() => { setScenario("calibrado"); setShowCalibration(false); }}
+                      style={{ background:"#1e3a5f", border:"none", borderRadius:8, padding:"6px 14px", cursor:"pointer", fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#fff" }}>
+                      Aplicar →
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Summary KPIs */}
           <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:14, marginBottom:24 }}>
             {[
-              { label:"Potencial de Recuperação", value:fmt(recovery.totalPotential), sub:`estimativa conservadora — taxa média ponderada`, accent:"#2d6a4f" },
+              { label:"Potencial de Recuperação", value:fmt(recovery.totalPotential), sub:`cenário ${SCENARIOS[recovery.scenarioKey]?.label || "Calibrado"} · taxa média ponderada`, accent:"#2d6a4f" },
               { label:"Clientes Acionáveis", value:fmtN(recovery.actionable), sub:`Em Risco + Adormecidos (excl. Perdidos)`, accent:"#e76f51" },
               { label:"Receita Histórica Inativa", value:fmt(recovery.totalInactiveRevenue), sub:`${fmtN(recovery.totalInactive)} clientes sem comprar`, accent:"#457b9d" },
             ].map(k=>(
