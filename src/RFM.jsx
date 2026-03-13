@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useBreakpoint } from "./useBreakpoint";
 
 const fmt = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
@@ -24,6 +24,16 @@ function quintileScore(sortedAsc, val) {
   const idx = sortedAsc.findIndex(v => v >= val);
   const pct = idx === -1 ? 1 : idx / sortedAsc.length;
   return Math.min(5, Math.ceil(pct * 5) || 1);
+}
+// Binary-search version of quintileScore (O(log n)) — used in evolution snapshots
+function bsLow(arr, val) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) { const mid = (lo + hi) >>> 1; arr[mid] < val ? lo = mid + 1 : hi = mid; }
+  return lo < arr.length ? lo : -1;
+}
+function qScoreFast(arr, val) {
+  if (!arr.length) return 1;
+  const pct = bsLow(arr, val); return Math.min(5, Math.ceil((pct === -1 ? 1 : pct / arr.length) * 5) || 1);
 }
 const SEG = {
   "VIP":         { color:"#7c2d12", bg:"#fef3c7", icon:"👑", desc:"Alta frequência e valor, ativos nos últimos 6 meses" },
@@ -153,6 +163,118 @@ Equipe [EMPRESA]`,
     kpis: ["Abertura e-mail: 8–15%", "Cliques: 2–5%", "Conversão: 0.5–2%", "ROI médio: 2–4x"],
   },
 };
+
+const SEG_KEYS = ["VIP","Leais","Novos","Ocasionais","Em Risco","Adormecidos","Perdidos"];
+const MO_PT    = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+function EvoChart({ data, isMobile }) {
+  const [showPct, setShowPct] = useState(false);
+  const [hoverIdx, setHoverIdx] = useState(null);
+  const [hidden, setHidden] = useState(new Set());
+  const cRef = useRef(null);
+
+  const VW=800, VH=260, PT=18, PR=16, PB=46, PL=62;
+  const CW=VW-PL-PR, CH=VH-PT-PB;
+  const vis = SEG_KEYS.filter(s => !hidden.has(s));
+  const vOf = (d, s) => showPct ? (d.total > 0 ? (d.segCounts[s]||0)/d.total*100 : 0) : (d.segCounts[s]||0);
+  const maxV = Math.max(1, ...data.flatMap(d => vis.map(s => vOf(d, s))));
+  const xOf  = i => data.length > 1 ? PL + (i/(data.length-1))*CW : PL+CW/2;
+  const yOf  = v => PT + CH - (Math.min(v, maxV)/maxV)*CH;
+
+  const onMove = e => {
+    if (!cRef.current) return;
+    const r = cRef.current.getBoundingClientRect();
+    setHoverIdx(Math.round(Math.max(0, Math.min(1, (e.clientX-r.left)/r.width)) * (data.length-1)));
+  };
+  const hov = hoverIdx !== null ? data[hoverIdx] : null;
+  const hX  = hoverIdx !== null ? xOf(hoverIdx) : 0;
+
+  return (
+    <div>
+      {/* Toggle */}
+      <div style={{ display:"flex", gap:6, marginBottom:16, alignItems:"center" }}>
+        <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"#aaa" }}>Métrica:</span>
+        {[[false,"Nº Clientes"],[true,"% da base"]].map(([v,l]) => (
+          <button key={String(v)} onClick={()=>setShowPct(v)} style={{ padding:"5px 12px", borderRadius:20, border:"none", cursor:"pointer", fontSize:11, fontFamily:"'JetBrains Mono',monospace", background:showPct===v?"#1a1a2e":"#f0ede8", color:showPct===v?"#fff":"#666" }}>{l}</button>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div ref={cRef} style={{ position:"relative", cursor:"crosshair" }} onMouseMove={onMove} onMouseLeave={()=>setHoverIdx(null)}>
+        <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width:"100%", height:"auto", display:"block" }}>
+          {/* Y grid */}
+          {Array.from({length:6},(_,i)=>{
+            const v = maxV/5*(5-i), y = yOf(v);
+            return <g key={i}>
+              <line x1={PL} y1={y} x2={VW-PR} y2={y} stroke="#f0ede8" strokeWidth={1}/>
+              <text x={PL-6} y={y+4} textAnchor="end" fill="#bbb" fontSize={9} fontFamily="JetBrains Mono,monospace">
+                {showPct ? `${Math.round(v)}%` : v>=1000 ? `${(v/1000).toFixed(v>=10000?0:1)}k` : Math.round(v)}
+              </text>
+            </g>;
+          })}
+          {/* X axis */}
+          <line x1={PL} y1={PT+CH} x2={VW-PR} y2={PT+CH} stroke="#e8e4de" strokeWidth={1}/>
+          {/* X labels */}
+          {data.map((d,i) => {
+            const show = data.length <= 8 || i % Math.ceil(data.length/7) === 0 || i === data.length-1;
+            return show ? <text key={i} x={xOf(i)} y={VH-6} textAnchor="middle" fill="#aaa" fontSize={9} fontFamily="JetBrains Mono,monospace">{d.label}</text> : null;
+          })}
+          {/* Lines */}
+          {vis.map(seg => (
+            <polyline key={seg}
+              points={data.map((d,i)=>`${xOf(i).toFixed(1)},${yOf(vOf(d,seg)).toFixed(1)}`).join(" ")}
+              fill="none" stroke={SEG[seg].color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round"/>
+          ))}
+          {/* Hover */}
+          {hoverIdx !== null && <>
+            <line x1={hX} y1={PT} x2={hX} y2={PT+CH} stroke="#1a1a2e" strokeWidth={1} strokeDasharray="3,3"/>
+            {vis.map(seg => <circle key={seg} cx={hX} cy={yOf(vOf(data[hoverIdx],seg))} r={4} fill={SEG[seg].color} stroke="#fff" strokeWidth={2}/>)}
+          </>}
+        </svg>
+
+        {/* Tooltip */}
+        {hov && (() => {
+          const lp = hX/VW*100, toRight = lp < 55;
+          return (
+            <div style={{ position:"absolute", top:8, ...(toRight?{left:`${lp+1.5}%`}:{right:`${100-lp+1.5}%`}), background:"#fff", border:"1px solid #e8e4de", borderRadius:10, padding:"10px 14px", boxShadow:"0 4px 18px rgba(0,0,0,.1)", minWidth:175, pointerEvents:"none", zIndex:10 }}>
+              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#aaa", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.08em" }}>{hov.label} · {fmtN(hov.total)} clientes</div>
+              {SEG_KEYS.filter(s=>!hidden.has(s)).map(seg => {
+                const v = hov.segCounts[seg]||0;
+                const pct = hov.total>0?(v/hov.total*100).toFixed(1):"0.0";
+                return (
+                  <div key={seg} style={{ display:"flex", justifyContent:"space-between", gap:10, marginBottom:4, alignItems:"center" }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:SEG[seg].color, fontFamily:"'JetBrains Mono',monospace" }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:SEG[seg].color, display:"inline-block", flexShrink:0 }}/>
+                      {seg}
+                    </span>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:700, color:"#1a1a2e" }}>
+                      {showPct ? `${pct}%` : fmtN(v)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Legend */}
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:14 }}>
+        {SEG_KEYS.map(seg => {
+          const isHidden = hidden.has(seg), cfg = SEG[seg];
+          return (
+            <button key={seg} onClick={()=>setHidden(prev=>{const n=new Set(prev);isHidden?n.delete(seg):n.add(seg);return n;})}
+              style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, border:"1.5px solid", borderColor:isHidden?"#e8e4de":cfg.color, background:isHidden?"#faf9f7":cfg.bg, cursor:"pointer", opacity:isHidden?0.4:1, transition:"all .1s" }}>
+              <span style={{ fontSize:10 }}>{cfg.icon}</span>
+              <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:isHidden?"#bbb":cfg.color, fontWeight:600 }}>{seg}</span>
+            </button>
+          );
+        })}
+        <button onClick={()=>setHidden(new Set())} style={{ padding:"4px 10px", borderRadius:20, border:"1px solid #e8e4de", background:"transparent", cursor:"pointer", fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#bbb" }}>mostrar todos</button>
+      </div>
+    </div>
+  );
+}
 
 function classify(r, f, m, days) {
   // Segmentação baseada em tempo absoluto (prioridade máxima)
@@ -316,6 +438,48 @@ export default function RFM({ norm, valid, fileName, onReset }) {
     return { withPotential, bySegment, totalPotential, actionable, totalInactiveRevenue, totalInactive: inactives.length, activeRates, scenarioKey: scenario };
   }, [rfm, scenario, customRates, customRatesValid]);
 
+  // ── Evolução histórica mês a mês (Jan/2025 → hoje) ──────────────────────
+  const evolution = useMemo(() => {
+    if (!valid.length) return null;
+    const s0 = valid[0];
+    const CK = Object.keys(s0).find(k=>k.includes("codigo")||k.includes("cliente"));
+    const NK = Object.keys(s0).find(k=>k.includes("nome"));
+    const DK = Object.keys(s0).find(k=>k.includes("data"));
+    const VK = Object.keys(s0).find(k=>k.includes("valor"))||Object.keys(s0).find(k=>k.includes("total"));
+    const rows = valid
+      .map(r => ({ cid:CK?r[CK]:(NK?r[NK]:"?"), val:parseValue(VK?r[VK]:0), date:DK?parseDate(r[DK]):null }))
+      .filter(r => r.date && !isNaN(r.date))
+      .sort((a,b) => a.date - b.date);
+    if (!rows.length) return null;
+    const now = new Date();
+    const snaps = [];
+    for (let d=new Date(2025,0,1); d<=now; d=new Date(d.getFullYear(),d.getMonth()+1,1)) {
+      const mo=d.getMonth(), y=d.getFullYear();
+      const eom = new Date(y, mo+1, 0, 23, 59, 59, 999);
+      snaps.push({ label:`${MO_PT[mo]}/${String(y).slice(2)}`, cutoff: eom>now ? new Date(now) : eom });
+    }
+    const cMap = {}; let pi = 0;
+    return snaps.map(({ label, cutoff }) => {
+      while (pi < rows.length && rows[pi].date <= cutoff) {
+        const { cid, val, date } = rows[pi++];
+        if (!cMap[cid]) cMap[cid] = { orders:0, total:0, lastOrder:null };
+        cMap[cid].orders++; cMap[cid].total += val;
+        if (!cMap[cid].lastOrder || date > cMap[cid].lastOrder) cMap[cid].lastOrder = date;
+      }
+      const clients = Object.values(cMap);
+      if (!clients.length) return { label, cutoff, segCounts:{}, total:0 };
+      const ds = d => d ? Math.floor((cutoff-d)/86400000) : 9999;
+      const fArr = clients.map(c=>c.orders).sort((a,b)=>a-b);
+      const mArr = clients.map(c=>c.total).sort((a,b)=>a-b);
+      const segCounts = {};
+      for (const c of clients) {
+        const seg = classify(0, qScoreFast(fArr,c.orders), qScoreFast(mArr,c.total), ds(c.lastOrder));
+        segCounts[seg] = (segCounts[seg]||0)+1;
+      }
+      return { label, cutoff, segCounts, total: clients.length };
+    });
+  }, [valid]);
+
   const ScoreBox = ({ v }) => (
     <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:28, height:28, borderRadius:6, fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, background:`rgba(26,26,46,${v*0.18})`, color: v>=4?"#fff":"#444" }}>{v}</span>
   );
@@ -328,7 +492,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <span style={{ fontFamily:"'Outfit',sans-serif", fontSize:isMobile?15:18, color:"#fff", fontWeight:600 }}>RFM</span>
           <div style={{ display:"flex", gap:2 }}>
-            {[{id:"analise",label:"Análise"},{id:"recuperacao",label:isMobile?"Recup.":"Recuperação"}].map(t=>(
+            {[{id:"analise",label:"Análise"},{id:"recuperacao",label:isMobile?"Recup.":"Recuperação"},{id:"evolucao",label:isMobile?"Evol.":"Evolução"}].map(t=>(
               <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ background:activeTab===t.id?"#ffffff18":"transparent", border:"none", color:activeTab===t.id?"#fff":"#ffffff55", padding:"7px 14px", borderRadius:8, cursor:"pointer", fontFamily:"'Inter',sans-serif", fontSize:13, fontWeight:activeTab===t.id?500:400 }}>{t.label}</button>
             ))}
           </div>
@@ -897,6 +1061,55 @@ export default function RFM({ norm, valid, fileName, onReset }) {
               );
             })}
           </div>
+        </>}
+
+        {/* ── Aba Evolução ── */}
+        {activeTab === "evolucao" && (!evolution || evolution.length === 0) && (
+          <div style={{ padding:60, textAlign:"center", fontFamily:"'JetBrains Mono',monospace", color:"#aaa", fontSize:13 }}>
+            Sem dados de 2025 em diante para calcular evolução mensal.
+          </div>
+        )}
+        {activeTab === "evolucao" && evolution && evolution.length > 0 && <>
+          {/* Chart card */}
+          <div style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:14, padding:isMobile?"18px 14px":"24px 28px", boxShadow:"0 1px 3px rgba(0,0,0,0.04)", marginBottom:20 }}>
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:17, fontWeight:600, color:"#1a1a2e", marginBottom:4 }}>Evolução dos Segmentos RFM</div>
+              <div style={{ fontSize:11, color:"#bbb", fontFamily:"'JetBrains Mono',monospace" }}>
+                Reconstituição histórica mês a mês · Jan/25 até hoje · passe o mouse para ver os valores · clique no segmento para ocultar/mostrar
+              </div>
+            </div>
+            <EvoChart data={evolution} isMobile={isMobile}/>
+          </div>
+
+          {/* Month-over-month delta cards */}
+          {evolution.length >= 2 && (() => {
+            const cur = evolution[evolution.length-1];
+            const prv = evolution[evolution.length-2];
+            const INACTIVE = ["Em Risco","Adormecidos","Perdidos"];
+            return <>
+              <div style={{ fontFamily:"'Outfit',sans-serif", fontSize:15, fontWeight:600, color:"#1a1a2e", marginBottom:12 }}>
+                Variação {prv.label} → {cur.label}
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":isTablet?"repeat(4,1fr)":"repeat(7,1fr)", gap:10, marginBottom:24 }}>
+                {SEG_KEYS.map(seg => {
+                  const cv = cur.segCounts[seg]||0, pv = prv.segCounts[seg]||0, delta = cv-pv;
+                  const isNegSeg = INACTIVE.includes(seg);
+                  const dColor = delta===0?"#bbb":delta>0?(isNegSeg?"#991b1b":"#2d6a4f"):(isNegSeg?"#2d6a4f":"#991b1b");
+                  const cfg = SEG[seg];
+                  return (
+                    <div key={seg} style={{ background:"#fff", border:"1px solid #e8e4de", borderRadius:12, padding:"14px 14px", boxShadow:"0 1px 3px rgba(0,0,0,0.03)" }}>
+                      <div style={{ fontSize:15, marginBottom:4 }}>{cfg.icon}</div>
+                      <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:cfg.color, fontWeight:600, marginBottom:6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{seg}</div>
+                      <div style={{ fontSize:20, fontFamily:"'Outfit',sans-serif", fontWeight:700, color:"#1a1a2e", lineHeight:1 }}>{fmtN(cv)}</div>
+                      <div style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:dColor, marginTop:4 }}>
+                        {delta>0?`+${fmtN(delta)}`:delta<0?fmtN(delta):"sem variação"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>;
+          })()}
         </>}
       </div>
 
