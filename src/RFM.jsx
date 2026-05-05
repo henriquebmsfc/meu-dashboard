@@ -36,7 +36,7 @@ function qScoreFast(arr, val) {
   const pct = bsLow(arr, val); return Math.min(5, Math.ceil((pct === -1 ? 1 : pct / arr.length) * 5) || 1);
 }
 const SEG = {
-  "VIP":         { color:"#7c2d12", bg:"#fef3c7", icon:"👑", desc:"Alta frequência e valor, ativos nos últimos 6 meses" },
+  "VIP":         { color:"#7c2d12", bg:"#fef3c7", icon:"👑", desc:"Score 5 em recência, frequência e valor — o topo da base" },
   "Leais":       { color:"#1e3a5f", bg:"#dbeafe", icon:"⭐", desc:"Compram bem e com frequência, base sólida" },
   "Novos":       { color:"#065f46", bg:"#a7f3d0", icon:"✨", desc:"Compraram recentemente, ainda nas primeiras compras" },
   "Ocasionais":  { color:"#374151", bg:"#f3f4f6", icon:"🔵", desc:"Ativos, mas com baixa frequência ou valor" },
@@ -282,8 +282,8 @@ function classify(r, f, m, days) {
   if (days > 365) return "Adormecidos"; // 1–2 anos sem comprar
   if (days > 180) return "Em Risco";    // 6–12 meses sem comprar
   // Clientes ativos (últimos 6 meses) — classificação por score
-  if (f >= 4 && m >= 4) return "VIP";          // frequência e valor altos
-  if (f >= 3 && m >= 3) return "Leais";        // frequência e valor bons
+  if (r === 5 && f === 5 && m === 5) return "VIP"; // perfeito em todos os critérios
+  if (f >= 3 && m >= 3) return "Leais";           // frequência e valor bons
   if (f <= 2 && days <= 90) return "Novos";    // recém chegados, poucas compras
   return "Ocasionais";                          // ativos mas baixa frequência/valor
 }
@@ -599,7 +599,7 @@ export default function RFM({ norm, valid, fileName, onReset }) {
             <div style={{ padding:"12px 14px", background:"#faf9f7", borderRadius:10, border:"1px solid #f0ede8", marginTop:4 }}>
               <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:600, color:"#1a1a2e", marginBottom:8 }}>🗂️ Lógica dos 7 segmentos</div>
               {[
-                { seg:"👑 VIP",         rule:"Ativos ≤180d · F≥4 e M≥4",        action:"Programa de fidelidade, relacionamento direto" },
+                { seg:"👑 VIP",         rule:"Ativos ≤180d · R=5, F=5 e M=5",   action:"Programa de fidelidade, relacionamento direto" },
                 { seg:"⭐ Leais",        rule:"Ativos ≤180d · F≥3 e M≥3",        action:"Upsell, manter engajamento" },
                 { seg:"✨ Novos",        rule:"Ativos ≤90d · F≤2 compras",        action:"Sequência pós-primeira compra" },
                 { seg:"🔵 Ocasionais",   rule:"Ativos ≤180d · baixo F ou M",      action:"Estimular frequência, promoções" },
